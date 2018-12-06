@@ -8,9 +8,11 @@ from allocator import TreeAllocator
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
-nb_children = 3
-node_size = 20
 VERBOSE = True
+random.seed(rank)
+
+nb_children = 3
+node_size = random.randint(15, 25)
 
 
 '''
@@ -22,7 +24,6 @@ data field meaning:
 
 class DummyApp:
     def __init__(self, allocator):
-        random.seed(rank)
         self.allocator = allocator
 
     def run(self):
