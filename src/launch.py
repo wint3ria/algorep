@@ -1,4 +1,5 @@
 from mpi4py import MPI
+from threading import Thread
 import random
 
 
@@ -32,16 +33,16 @@ class DummyApp:
 
 def main():
     allocator = TreeAllocator(rank, nb_children, comm, node_size, verbose=VERBOSE)
-    allocator.init_memory()
-    '''if rank == 1:
-        allocator.allocate(10)
-        allocator.allocate(19)
-    if rank == 0:
-        for i in range(2): #waiting for 2 messages, but should be a while true i think
-            allocator.listen()
-    '''
+    allocator_thread = Thread(target=allocator.run)
+    allocator_thread.start()
+
     app = DummyApp(allocator)
     app.run()
+
+    if not rank:
+        allocator.stop_allocator()
+
+    allocator_thread.join()
 
 
 if __name__ == "__main__":
