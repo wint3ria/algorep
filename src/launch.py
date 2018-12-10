@@ -1,3 +1,5 @@
+from time import sleep
+
 from mpi4py import MPI
 from threading import Thread
 import random
@@ -13,7 +15,7 @@ VERBOSE = True
 random.seed(rank)
 
 nb_children = 3
-node_size = random.randint(15, 25)
+node_size = 2
 
 
 '''
@@ -28,7 +30,16 @@ class DummyApp:
         self.allocator = allocator
 
     def run(self):
-        pass
+        var_id = True
+        while var_id and not rank:
+            self.allocator.log(f'Request allocation')
+            var_id = self.allocator.dalloc()
+            self.allocator.log(f'Allocation done, got id {var_id}')
+        self.allocator.read_variable((0, 0, 0))
+        self.allocator.read_variable((0, 0, 1))
+        self.allocator.read_variable((0, 0, 1))
+        self.allocator.read_variable((12, 42))
+        self.allocator.read_variable((0, 1, 0))
 
 
 def main():
@@ -40,6 +51,7 @@ def main():
     app.run()
 
     if not rank:
+        sleep(3)
         allocator.stop_allocator()
 
     allocator_thread.join()
