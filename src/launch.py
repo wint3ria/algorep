@@ -17,28 +17,24 @@ random.seed(rank)
 nb_children = 3
 node_size = 2
 
-
-'''
-data field meaning:
-=> -10 : memory_initialisation
-=> 1 : Asking memory
-'''
-
-
 class StressSimpleAlloc:
     def __init__(self, allocator):
         self.allocator = allocator
 
     def run(self):
         var_id = True
-        while var_id:
+        self.allocator.log(f'Request allocation')
+        var_id = self.allocator.dalloc()
+        self.allocator.log(f'Allocation done, got id {var_id}')
+        '''
+        while var_id and rank == 4:
             self.allocator.log(f'Request allocation')
             var_id = self.allocator.dalloc()
             self.allocator.log(f'Allocation done, got id {var_id}')
         if not rank:
             self.allocator.read_variable((0, 0, 0))
             self.allocator.read_variable((0, 0, 1))
-            self.allocator.read_variable((0, 0, 1))
+            self.allocator.read_variable((0, 0, 1))'''
 
 
 def main():

@@ -70,7 +70,7 @@ class Allocator:
             self.log(f'Call handler "{handler_id}"')
             if handler_id not in self.handlers:
                 raise RuntimeError(f'No available handler for this id {handler_id}')
-            self.handlers[handler_id](request['data'])
+            self.handlers[handler_id](request)
 
 
 class TreeAllocator(Allocator):
@@ -106,7 +106,9 @@ class TreeAllocator(Allocator):
         res = self._alloc_local(request_process or self.rank)
         if not res:
             res = self._alloc_children(request_process or self.rank)
-        # TODO: ask parent for allocation
+        if not res and self.parent is not None:
+            res = self._alloc_parent(request_process or self.rank)
+            # TODO: ask parent for allocation
         return res
 
     def read_variable(self, vid):
@@ -145,7 +147,7 @@ class TreeAllocator(Allocator):
             self.stop_allocator()
 
     def _alloc_local(self, request_process):
-        if len([x for x in self.variables if x is not None]) < self.local_size:
+        if len([x for x in self.variables if self.variables[x] is not None]) < self.local_size:
             var = Variable(request_process, self.rank)
             self.variables[var.id] = var
             self._notify_allocation(var.id)
@@ -158,6 +160,9 @@ class TreeAllocator(Allocator):
         self._send(res, self.parent, 2)
 
     def _alloc_children(self, request_process):
+        if request_process in self.children:
+            self.log('setting children {} memory to 0. memory map: {}'.format(request_process, self.memory_map))
+            self.memory_map[request_process] = 0
         children = filter(lambda c: self.memory_map[c] > 0, self.children)
         for child in children:
             self._send({'handler': 'allocation_request', 'request_process': request_process}, child, 1)
@@ -171,6 +176,18 @@ class TreeAllocator(Allocator):
                 return vid
         return
 
+    def _alloc_parent(self, request_process):
+        self._send({'handler': 'allocation_request', 'request_process': request_process}, self.parent, 1)
+        status = self._receive(self.parent, 2)
+        vid = status['data']
+        if vid is not None:
+            self.memory_map[self.parent] -= 1
+            self.size -= 1
+            self.log(f'Variable {vid} allocated on distant node')
+            self.variables[vid] = None
+            return vid
+        return
+
     def _notify_allocation(self, vid):
         if self.parent is not None:
             self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, self.parent, 1)
@@ -178,11 +195,13 @@ class TreeAllocator(Allocator):
             self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, child, 1)
 
     def _notification_handler(self, data):
+        src = data['src']
+        data = data['data']
         vid = data['data']['vid']
         self.log(f'Allocation notification with vid {vid}, metadata: {data}')
         self.variables[vid] = None
-        if self.parent is not None and self.parent != data['data']['from']:
+        if self.parent is not None and self.parent != src:
             self._send({'data': data['data'], 'handler': 'notification_handler'}, self.parent, 1)
-        children = [c for c in self.children if c != data['data']['from']]
+        children = [c for c in self.children if c != src]
         for child in children:
             self._send({'handler': 'notification_handler', 'data': data['data']}, child, 1)
