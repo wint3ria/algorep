@@ -25,21 +25,20 @@ data field meaning:
 '''
 
 
-class DummyApp:
+class StressSimpleAlloc:
     def __init__(self, allocator):
         self.allocator = allocator
 
     def run(self):
         var_id = True
-        while var_id and not rank:
+        while var_id:
             self.allocator.log(f'Request allocation')
             var_id = self.allocator.dalloc()
             self.allocator.log(f'Allocation done, got id {var_id}')
-        self.allocator.read_variable((0, 0, 0))
-        self.allocator.read_variable((0, 0, 1))
-        self.allocator.read_variable((0, 0, 1))
-        self.allocator.read_variable((12, 42))
-        self.allocator.read_variable((0, 1, 0))
+        if not rank:
+            self.allocator.read_variable((0, 0, 0))
+            self.allocator.read_variable((0, 0, 1))
+            self.allocator.read_variable((0, 0, 1))
 
 
 def main():
@@ -47,7 +46,7 @@ def main():
     allocator_thread = Thread(target=allocator.run)
     allocator_thread.start()
 
-    app = DummyApp(allocator)
+    app = StressSimpleAlloc(allocator)
     app.run()
 
     if not rank:

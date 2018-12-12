@@ -33,40 +33,67 @@ class Variable(Storage):
         self.value = None
 
 
-class TreeAllocator:
-    def __init__(self, rank, nb_children, comm, size, verbose=False):
-        self.nb_children = nb_children
+class Allocator:
+    def __init__(self, rank, comm, size, verbose=False):
         self.comm = comm
         self.rank = rank
         self.verbose = verbose
-        # use a tree topology
-        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < comm.Get_size()]
-        self.parent = None
-        if rank:
-            self.parent = (rank - 1) // nb_children
         self.variables = {}
         self.clock = 0
-        self.memory_map = None
-        if self.children:
-            self.memory_map = dict([(x, 0) for x in self.children])
-        self.size = size
         self.local_size = size
         self.stop = False
-        self.handlers = {
-            'stop': self._stop_handler,
-            'stop_request': self._request_stop_handler,
-            'allocation_request': self._alloc_handler,
-        }
-        self._init_memory()
+        self.handlers = {}
 
     def log(self, msg):
         self.verbose and print('N{} [clk|{}]: {}'.format(self.rank, self.clock, msg), flush=True)
+
+    def _send(self, data, dest, tag):
+        data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
+        req = self.comm.isend(data, dest=dest, tag=tag)
+        req.wait()
+        self.clock += 1
+        self.log(f"send: {data} on tag {tag}")
+
+    def _receive(self, src, tag):
+        req = self.comm.irecv(source=src, tag=tag)
+        self.log('waiting for {}'.format(src))
+        data = req.wait()
+        self.log('done waiting for {}'.format(src))
+        self.clock = max(self.clock, data['clock']) + 1
+        self.log(f'received: {data} on tag {tag}')
+        return data
 
     def run(self):
         while not self.stop:
             request = self._receive(MPI.ANY_SOURCE, 1)
             handler_id = request['data']['handler']
+            self.log(f'Call handler "{handler_id}"')
+            if handler_id not in self.handlers:
+                raise RuntimeError(f'No available handler for this id {handler_id}')
             self.handlers[handler_id](request['data'])
+
+
+class TreeAllocator(Allocator):
+
+    def __init__(self, rank, nb_children, comm, size, verbose=False):
+        super(TreeAllocator, self).__init__(rank, comm, size, verbose)
+        self.nb_children = nb_children
+        # use a tree topology
+        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < comm.Get_size()]
+        self.parent = None
+        if rank:
+            self.parent = (rank - 1) // nb_children
+        self.memory_map = None
+        if self.children:
+            self.memory_map = dict([(x, 0) for x in self.children])
+        self.size = size
+        self._init_memory()
+        self.handlers = {
+            'stop': self._stop_handler,
+            'stop_request': self._request_stop_handler,
+            'allocation_request': self._alloc_handler,
+            'notification_handler': self._notification_handler,
+        }
 
     def stop_allocator(self):  # TODO: atomic function
         if self.rank != 0:
@@ -85,28 +112,15 @@ class TreeAllocator:
     def read_variable(self, vid):
         self.log(f'Read access to variable {vid}')
         if vid in self.variables:
-            return dict(self.variables)[vid]
-        if vid not in self.variables:
+            if self.variables[vid] is not None:
+                return self.variables[vid].value
+            else:
+                pass
+                # TODO: request access to a variable outside of the process
+        else:
             self.log(f'ERROR: variable {vid} does not exist')
-            self._request_stop_handler({'message': 'ERROR: request access to a non existant variable'})
+            self._request_stop_handler({'message': 'ERROR: request access to a non existent variable'})
             return None
-        # TODO: request access to a variable outside of the process
-
-    def _send(self, data, dest, tag):
-        data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
-        req = self.comm.isend(data, dest=dest, tag=tag)
-        req.wait()
-        self.clock += 1
-        self.log("send: {}".format(data))
-
-    def _receive(self, src, tag):
-        req = self.comm.irecv(source=src, tag=tag)
-        self.log('waiting for {}'.format(src))
-        data = req.wait()
-        self.log('done waiting for {}'.format(src))
-        self.clock = max(self.clock, data['clock']) + 1
-        self.log('received: {}'.format(data))
-        return data
 
     def _init_memory(self):
         self.log('call init memory')
@@ -122,6 +136,7 @@ class TreeAllocator:
         self.stop = True
         for child in self.children:
             self._send({'handler': 'stop'}, child, 1)
+        self.log(f'End of process {self.rank}, variables:\n{self.variables}')
 
     def _request_stop_handler(self, data):
         if self.rank:
@@ -130,20 +145,12 @@ class TreeAllocator:
             self.stop_allocator()
 
     def _alloc_local(self, request_process):
-        if len(self.variables) < self.local_size:
+        if len([x for x in self.variables if x is not None]) < self.local_size:
             var = Variable(request_process, self.rank)
             self.variables[var.id] = var
-            # TODO: notify allocation
+            self._notify_allocation(var.id)
             return var.id
         return None
-
-    def _notify_allocation(self, vid):
-        self._send({'data': vid, 'handler': 'notification_handler'}, self.parent, 4)
-        for child in self.children:
-            self._send({'data': vid, 'handler': 'notification_handler'}, child, 4)
-
-    def _notification_handler(self, data):
-        pass
 
     def _alloc_handler(self, data):
         self.log('Alloc handler')
@@ -155,7 +162,27 @@ class TreeAllocator:
         for child in children:
             self._send({'handler': 'allocation_request', 'request_process': request_process}, child, 1)
             status = self._receive(child, 2)
-            if status['data'] is not None:
+            vid = status['data']
+            if vid is not None:
                 self.memory_map[child] -= 1
-                return status['data']
-        return None
+                self.size -= 1
+                self.log(f'Variable {vid} allocated on distant node')
+                self.variables[vid] = None
+                return vid
+        return
+
+    def _notify_allocation(self, vid):
+        if self.parent is not None:
+            self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, self.parent, 1)
+        for child in self.children:
+            self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, child, 1)
+
+    def _notification_handler(self, data):
+        vid = data['data']['vid']
+        self.log(f'Allocation notification with vid {vid}, metadata: {data}')
+        self.variables[vid] = None
+        if self.parent is not None and self.parent != data['data']['from']:
+            self._send({'data': data['data'], 'handler': 'notification_handler'}, self.parent, 1)
+        children = [c for c in self.children if c != data['data']['from']]
+        for child in children:
+            self._send({'handler': 'notification_handler', 'data': data['data']}, child, 1)
