@@ -9,6 +9,7 @@ MPI tags
 2: allocation result
 3: request stop procedure
 4: notify a local allocation
+5: read request
 '''
 
 num = 0
@@ -44,9 +45,12 @@ class Allocator:
         self.stop = False
         self.handlers = {}
         self.allow_notifications = allow_notifications
+        self.logfile = open(f'process{self.rank}.log', 'w')
 
     def log(self, msg):
-        self.verbose and print('N{} [clk|{}]: {}'.format(self.rank, self.clock, msg), flush=True)
+        msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
+        self.verbose and print(msg, flush=True)
+        self.logfile.write(msg + '\n')
 
     def _send(self, data, dest, tag):
         data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
@@ -98,6 +102,7 @@ class TreeAllocator(Allocator):
             'stop_request': self._request_stop_handler,
             'allocation_request': self._alloc_handler,
             'notification_handler': self._notification_handler,
+            'read_request_handler': self._read_variable_handler,
         }
 
     def stop_allocator(self):  # TODO: atomic function
@@ -116,14 +121,27 @@ class TreeAllocator(Allocator):
             # TODO: ask parent for allocation
         return res
 
+    def _read_variable_handler(self, data):
+        self.log(f'Request variable {data["vid"]} from process {data["from"]}')
+        var = self.read_variable(data['vid'])
+        self._send({'variable': var}, data['from'], 5)
+
     def read_variable(self, vid):
         self.log(f'Read access to variable {vid}')
         if vid in self.variables:
             if self.variables[vid] is not None:
                 return self.variables[vid].value
             else:
-                pass
-                # TODO: request access to a variable outside of the process
+                is_ancestor, ancestors = self._is_ancestor(self.rank, vid[1], self.nb_children)
+                if is_ancestor:
+                    if vid[1] in self.children:
+                        dest = vid[1]
+                    else:
+                        dest = ancestors[-2]
+                else:
+                    dest = self.parent
+                self._send({'handler': 'read_request_handler'}, dest, 1)
+                return self._receive(dest, 5)
         else:
             self.log(f'ERROR: variable {vid} does not exist')
             self._request_stop_handler({'message': 'ERROR: request access to a non existent variable'})
@@ -211,3 +229,14 @@ class TreeAllocator(Allocator):
         children = [c for c in self.children if c != src]
         for child in children:
             self._send({'handler': 'notification_handler', 'data': data['data']}, child, 1)
+
+    def _is_ancestor(self, a, n, k, l=list()):
+        if a == 0:
+            return True, l
+        an = (n - 1) // k
+        l.append(an)
+        if an == a:
+            return True, l
+        if an == 0:
+            return False, None
+        return self._is_ancestor(a, an, k, l)

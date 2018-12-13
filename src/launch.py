@@ -17,24 +17,17 @@ random.seed(rank)
 nb_children = 3
 node_size = 2
 
+
 class StressSimpleAlloc:
     def __init__(self, allocator):
         self.allocator = allocator
 
     def run(self):
-        var_id = True
         self.allocator.log(f'Request allocation')
         var_id = self.allocator.dmalloc()
         self.allocator.log(f'Allocation done, got id {var_id}')
-        '''
-        while var_id and rank == 4:
-            self.allocator.log(f'Request allocation')
-            var_id = self.allocator.dmalloc()
-            self.allocator.log(f'Allocation done, got id {var_id}')
-        if not rank:
-            self.allocator.read_variable((0, 0, 0))
-            self.allocator.read_variable((0, 0, 1))
-            self.allocator.read_variable((0, 0, 1))'''
+        self.allocator.log(f'Request read on variable {var_id}')
+        self.allocator.log(f'Got this value: {self.allocator.read_variable(var_id)}')
 
 
 def main():
