@@ -34,7 +34,7 @@ class Variable(Storage):
 
 
 class Allocator:
-    def __init__(self, rank, comm, size, verbose=False):
+    def __init__(self, rank, comm, size, verbose=False, allow_notifications=False):
         self.comm = comm
         self.rank = rank
         self.verbose = verbose
@@ -43,6 +43,7 @@ class Allocator:
         self.local_size = size
         self.stop = False
         self.handlers = {}
+        self.allow_notifications = allow_notifications
 
     def log(self, msg):
         self.verbose and print('N{} [clk|{}]: {}'.format(self.rank, self.clock, msg), flush=True)
@@ -65,12 +66,16 @@ class Allocator:
 
     def run(self):
         while not self.stop:
-            request = self._receive(MPI.ANY_SOURCE, 1)
-            handler_id = request['data']['handler']
-            self.log(f'Call handler "{handler_id}"')
-            if handler_id not in self.handlers:
-                raise RuntimeError(f'No available handler for this id {handler_id}')
-            self.handlers[handler_id](request)
+            try:
+                request = self._receive(MPI.ANY_SOURCE, 1)
+                handler_id = request['data']['handler']
+                self.log(f'Call handler "{handler_id}"')
+                if handler_id not in self.handlers:
+                    raise RuntimeError(f'No available handler for this id {handler_id}')
+                self.handlers[handler_id](request)
+            except Exception as e:
+                self.log(e)
+                self.stop = True
 
 
 class TreeAllocator(Allocator):
@@ -101,7 +106,7 @@ class TreeAllocator(Allocator):
         if not self.stop:
             self._send({'handler': 'stop'}, 0, 1)
 
-    def dalloc(self, request_process=None):
+    def dmalloc(self, request_process=None):
         self.clock += 1
         res = self._alloc_local(request_process or self.rank)
         if not res:
@@ -150,13 +155,14 @@ class TreeAllocator(Allocator):
         if len([x for x in self.variables if self.variables[x] is not None]) < self.local_size:
             var = Variable(request_process, self.rank)
             self.variables[var.id] = var
-            self._notify_allocation(var.id)
+            if self.allow_notifications:
+                self._notify_allocation(var.id)
             return var.id
         return None
 
     def _alloc_handler(self, data):
         self.log('Alloc handler')
-        res = self.dalloc(data['request_process'])
+        res = self.dmalloc(data['request_process'])
         self._send(res, self.parent, 2)
 
     def _alloc_children(self, request_process):

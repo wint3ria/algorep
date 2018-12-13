@@ -24,12 +24,12 @@ class StressSimpleAlloc:
     def run(self):
         var_id = True
         self.allocator.log(f'Request allocation')
-        var_id = self.allocator.dalloc()
+        var_id = self.allocator.dmalloc()
         self.allocator.log(f'Allocation done, got id {var_id}')
         '''
         while var_id and rank == 4:
             self.allocator.log(f'Request allocation')
-            var_id = self.allocator.dalloc()
+            var_id = self.allocator.dmalloc()
             self.allocator.log(f'Allocation done, got id {var_id}')
         if not rank:
             self.allocator.read_variable((0, 0, 0))
