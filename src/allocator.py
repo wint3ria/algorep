@@ -1,6 +1,5 @@
 from mpi4py import MPI
 
-
 '''
 MPI tags
 
@@ -33,24 +32,14 @@ class Variable(Storage):
             super().__init__(vid)
         self.value = None
 
-class Allocator:
-    def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
-        self.comm = comm
+
+class MPI_process:
+    def __init__(self, rank, comm, verbose, clock=0):
         self.rank = rank
         self.verbose = verbose
-        self.variables = {}
-        self.clock = 0
-        self.local_size = size
-        self.tree_size = tree_size
-        self.stop = False
-        self.handlers = {}
-        self.allow_notifications = allow_notifications
+        self.comm = comm
+        self.clock = clock
         self.logfile = open(f'process{self.rank}.log', 'w')
-
-    def log(self, msg):
-        msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
-        self.verbose and print(msg, flush=True)
-        self.logfile.write(msg + '\n')
 
     def _send(self, data, dest, tag):
         data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
@@ -67,6 +56,22 @@ class Allocator:
         self.clock = max(self.clock, data['clock']) + 1
         self.log(f'received: {data} on tag {tag}')
         return data
+
+    def log(self, msg):
+        msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
+        self.verbose and print(msg, flush=True)
+        self.logfile.write(msg + '\n')
+
+class Allocator(MPI_process):
+    def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
+        super(Allocator, self).__init__(rank, comm, size, verbose)
+        self.variables = {}
+        self.local_size = size
+        self.tree_size = tree_size
+        self.stop = False
+        self.handlers = {}
+        self.allow_notifications = allow_notifications
+
 
     def run(self):
         while not self.stop:

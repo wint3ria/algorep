@@ -5,7 +5,7 @@ from threading import Thread
 import random
 
 
-from allocator import TreeAllocator
+from allocator import TreeAllocator, MPI_process
 
 
 comm = MPI.COMM_WORLD
@@ -18,33 +18,10 @@ nb_children = 3
 node_size = 2
 
 
-class StressSimpleAlloc:
-    def __init__(self, rank, allocator_rank, comm, verbose=VERBOSE):
-        self.rank = rank
+class StressSimpleAlloc(MPI_process):
+    def __init__(self, rank, allocator_rank, comm, verbose):
+        super(StressSimpleAlloc, self).__init__(rank, comm, size, verbose)
         self.allocator_rank = allocator_rank
-        self.verbose = VERBOSE
-        self.comm = comm
-        self.clock = 0
-
-    def _send(self, data, dest, tag):
-        data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
-        req = self.comm.isend(data, dest=dest, tag=tag)
-        self.clock += 1
-        req.wait()
-        self.log(f"send: {data} on tag {tag}")
-
-    def _receive(self, src, tag):
-        req = self.comm.irecv(source=src, tag=tag)
-        self.log('waiting for {}'.format(src))
-        data = req.wait()
-        self.log('done waiting for {}'.format(src))
-        self.clock = max(self.clock, data['clock']) + 1
-        self.log(f'received: {data} on tag {tag}')
-        return data
-
-    def log(self, msg):
-        msg = 'App {} [clk|{}]: {}'.format(self.rank, self.clock, msg)
-        self.verbose and print(msg, flush=True)
 
     def read(self, vid):
         self._send({'handler': 'read_request_handler', 'vid': vid}, self.allocator_rank, 1)
