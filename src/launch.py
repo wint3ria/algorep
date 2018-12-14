@@ -24,8 +24,13 @@ class StressSimpleAlloc(MPI_process):
         self.allocator_rank = allocator_rank
 
     def read(self, vid):
-        self._send({'handler': 'read_request_handler', 'vid': vid}, self.allocator_rank, 1)
-        return self._receive(self.allocator_rank, 5)
+        self._send({
+                'handler': 'read_variable',
+                'send_back': self.rank,
+                'vid': vid,
+            },
+            self.allocator_rank, 1)
+        return self._receive(self.allocator_rank, 10)
 
     def allocate(self):
         self._send({'handler': 'allocation_request'}, self.allocator_rank, 1)

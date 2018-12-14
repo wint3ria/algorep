@@ -1,4 +1,5 @@
 from mpi4py import MPI
+import traceback
 
 '''
 MPI tags
@@ -9,6 +10,7 @@ MPI tags
 3: request stop procedure
 4: notify a local allocation
 5: read request
+10: public interface responses
 '''
 
 num = 0
@@ -83,7 +85,7 @@ class Allocator(MPI_process):
                     raise RuntimeError(f'No available handler for this id {handler_id}')
                 self.handlers[handler_id](request)
             except Exception as e:
-                self.log(f'exception: {e}')
+                self.log(f'exception: {traceback.format_exc()}')
                 self.stop = True
 
 
@@ -106,7 +108,8 @@ class TreeAllocator(Allocator):
             'stop_request': self._request_stop_handler,
             'allocation_request': self._alloc_handler,
             'notification_handler': self._notification_handler,
-            'read_request_handler': self._read_variable_handler,
+            'read_variable': self.read_variable,
+            'read_response_handler': self.read_response_handler,
         }
 
     def stop_allocator(self):  # TODO: atomic function
@@ -124,6 +127,55 @@ class TreeAllocator(Allocator):
             res = self._alloc_parent(request_process or self.rank)
         return res
 
+    def read_response_handler(self, metadata):
+        data = metadata['data']
+        dst = data['send_back'].pop()
+        if 'variable' not in data:
+            data['variable'] = self.variables[data['vid']]
+        if len(data['send_back']):
+            self._send(data, dst, 1)
+            return
+        self._send(data['variable'], dst, 10)
+
+    def read_variable(self, metadata):
+        data = metadata['data']
+        vid = data['vid']
+        owner = vid[1]
+
+        send_back = data['send_back']
+        if type(send_back) == int:
+            self.log('First API call for read_variable')
+            data['src'] = send_back
+            send_back = [send_back]
+        data['send_back'] = send_back
+
+        if vid in self.variables:
+            metadata['data'] = data
+            self.read_response_handler(metadata)
+            return
+
+        src = data['src']
+        children = [child for child in self.children if child != src]
+        data['src'] = self.rank
+        send_back.append(self.rank)
+
+        if owner in children or owner == self.parent:
+            self.log('Child or parent owns the variable')
+            data['handler'] = 'read_response_handler'
+            self._send(data, owner, 1)
+            return
+        elif self.rank == 0:
+            self.log('error toto tata')
+            return
+
+        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
+        if is_ancestor:
+            self._send(data, path[-2], 1)
+            return
+
+        self._send(data, self.parent, 1)
+
+    '''
     def _read_variable_handler(self, data):
         src = data['src']
         data = data['data']
@@ -144,14 +196,9 @@ class TreeAllocator(Allocator):
                     dest = ancestors[-2]
             else:
                 dest = self.parent
-            self._send({'handler': 'read_request_handler', 'vid': vid}, dest, 1)
-            return self._receive(dest, 5)['data']
-        '''
-        else:
-            self.log(f'ERROR: variable {vid} does not exist')
-            self._request_stop_handler({'message': 'ERROR: request access to a non existent variable'})
-            return None
-        '''
+            return self._receive(dest, 5)['data']['variable']
+        self._send({'handler': 'read_request_handler', 'vid': vid}, dest, 1)
+    '''
 
     def _init_memory(self):
         self.log('call init memory')
@@ -226,6 +273,40 @@ class TreeAllocator(Allocator):
             return vid
         return
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def _is_ancestor(self, a, n, k, l=list()):
+        if n == 0:
+            return False, l
+        if a == 0:
+            return True, l
+        an = (n - 1) // k
+        l.append(an)
+        if an == a:
+            return True, l
+        if an == 0:
+            return False, None
+        return self._is_ancestor(a, an, k, l)
+
     def _notify_allocation(self, vid):
         if self.parent is not None:
             self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, self.parent, 1)
@@ -243,16 +324,3 @@ class TreeAllocator(Allocator):
         children = [c for c in self.children if c != src]
         for child in children:
             self._send({'handler': 'notification_handler', 'data': data['data']}, child, 1)
-
-    def _is_ancestor(self, a, n, k, l=list()):
-        if n == 0:
-            return False, l
-        if a == 0:
-            return True, l
-        an = (n - 1) // k
-        l.append(an)
-        if an == a:
-            return True, l
-        if an == 0:
-            return False, None
-        return self._is_ancestor(a, an, k, l)
