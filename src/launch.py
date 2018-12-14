@@ -29,6 +29,14 @@ class StressSimpleAlloc:
         self.allocator.log(f'Request read on variable {var_id}')
         self.allocator.log(f'Got this value: {self.allocator.read_variable(var_id)}')
 
+        if rank == 0:
+            self.allocator.log(self.allocator.read_variable((1, 1, 0)))
+            self.allocator.log(self.allocator.read_variable((2, 2, 0)))
+
+        if rank == 2:
+            self.allocator.log(self.allocator.read_variable((0, 0, 0)))
+            self.allocator.log(self.allocator.read_variable((1, 1, 0)))
+
 
 def main():
     allocator = TreeAllocator(rank, nb_children, comm, node_size, verbose=VERBOSE)
