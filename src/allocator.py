@@ -33,16 +33,15 @@ class Variable(Storage):
             super().__init__(vid)
         self.value = None
 
-
-
 class Allocator:
-    def __init__(self, rank, comm, size, verbose=False, allow_notifications=False):
+    def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
         self.comm = comm
         self.rank = rank
         self.verbose = verbose
         self.variables = {}
         self.clock = 0
         self.local_size = size
+        self.tree_size = tree_size
         self.stop = False
         self.handlers = {}
         self.allow_notifications = allow_notifications
@@ -84,12 +83,11 @@ class Allocator:
 
 
 class TreeAllocator(Allocator):
-
-    def __init__(self, rank, nb_children, comm, size, verbose=False):
-        super(TreeAllocator, self).__init__(rank, comm, size, verbose)
+    def __init__(self, rank, nb_children, comm, size, tree_size, verbose=False):
+        super(TreeAllocator, self).__init__(rank, comm, size, tree_size, verbose)
         self.nb_children = nb_children
         # use a tree topology
-        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < comm.Get_size()]
+        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < self.tree_size]
         self.parent = None
         if rank:
             self.parent = (rank - 1) // nb_children
@@ -183,8 +181,16 @@ class TreeAllocator(Allocator):
 
     def _alloc_handler(self, data):
         self.log('Alloc handler')
-        res = self.dmalloc(data['request_process'])
-        self._send(res, self.parent, 2)
+
+        request_process = None
+        if 'request_process' in data:
+            request_process = data['request_process']
+
+        res = self.dmalloc(request_process)
+        if self.parent:
+            self._send(res, self.parent, 2)
+        else:
+            self._send(res, data['src'], 2)
 
     def _alloc_children(self, request_process):
         if request_process in self.children:
