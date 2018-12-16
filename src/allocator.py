@@ -64,7 +64,9 @@ class MPI_process:
         self.verbose and print(msg, flush=True)
         self.logfile.write(msg + '\n')
 
+
 class Allocator(MPI_process):
+
     def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
         super(Allocator, self).__init__(rank, comm, size, verbose)
         self.variables = {}
@@ -73,7 +75,6 @@ class Allocator(MPI_process):
         self.stop = False
         self.handlers = {}
         self.allow_notifications = allow_notifications
-
 
     def run(self):
         while not self.stop:
@@ -111,12 +112,6 @@ class TreeAllocator(Allocator):
             'read_variable': self.read_variable,
             'read_response_handler': self.read_response_handler,
         }
-
-    def stop_allocator(self):  # TODO: atomic function
-        if self.rank != 0:
-            raise RuntimeError('Must be called by the root only')
-        if not self.stop:
-            self._send({'handler': 'stop'}, 0, 1)
 
     def dmalloc(self, request_process=None):
         self.clock += 1
@@ -218,9 +213,12 @@ class TreeAllocator(Allocator):
 
     def _request_stop_handler(self, data):
         if self.rank:
-            self._send({'handler': 'request_stop', 'message': data['message']}, self.parent, 3)
+            new_data = {'handler': 'stop_request'}
+            if 'message' in data:
+                new_data['message'] = data['message']
+            self._send(new_data, self.parent, 1)
         else:
-            self.stop_allocator()
+            self._stop_handler(None)
 
     def _alloc_local(self, request_process):
         if len([x for x in self.variables if self.variables[x] is not None]) < self.local_size:
@@ -266,7 +264,7 @@ class TreeAllocator(Allocator):
         status = self._receive(self.parent, 2)
         vid = status['data']
         if vid is not None:
-            self.memory_map[self.parent] -= 1
+            #self.memory_map[self.parent] -= 1
             self.size -= 1
             self.log(f'Variable {vid} allocated on distant node')
             self.variables[vid] = None
