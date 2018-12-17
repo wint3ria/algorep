@@ -139,7 +139,7 @@ class TreeAllocator(Allocator):
 
         send_back = data['send_back']
         if type(send_back) == int:
-            self.log('First API call for read_variable')
+            self.log(f'First API call for read_variable {vid} from {send_back}')
             data['src'] = send_back
             send_back = [send_back]
         data['send_back'] = send_back
@@ -159,41 +159,12 @@ class TreeAllocator(Allocator):
             data['handler'] = 'read_response_handler'
             self._send(data, owner, 1)
             return
-        elif self.rank == 0:
-            self.log('error toto tata')
-            return
 
         is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
         if is_ancestor:
             self._send(data, path[-2], 1)
             return
-
         self._send(data, self.parent, 1)
-
-    '''
-    def _read_variable_handler(self, data):
-        src = data['src']
-        data = data['data']
-        self.log(f'Request variable {data["vid"]} from process {src}')
-        var = self.read_variable(data['vid'])
-        self._send({'variable': var}, src, 5)
-
-    def read_variable(self, vid):
-        self.log(f'Read access to variable {vid}')
-        if vid in self.variables:
-            return self.variables[vid]
-        else:
-            is_ancestor, ancestors = self._is_ancestor(self.rank, vid[1], self.nb_children)
-            if is_ancestor:
-                if vid[1] in self.children:
-                    dest = vid[1]
-                else:
-                    dest = ancestors[-2]
-            else:
-                dest = self.parent
-            return self._receive(dest, 5)['data']['variable']
-        self._send({'handler': 'read_request_handler', 'vid': vid}, dest, 1)
-    '''
 
     def _init_memory(self):
         self.log('call init memory')
@@ -249,25 +220,28 @@ class TreeAllocator(Allocator):
         children = filter(lambda c: self.memory_map[c] > 0, self.children)
         for child in children:
             self._send({'handler': 'allocation_request', 'request_process': request_process}, child, 1)
+
+            # TODO: fix deadlock
+
             status = self._receive(child, 2)
             vid = status['data']
             if vid is not None:
                 self.memory_map[child] -= 1
                 self.size -= 1
                 self.log(f'Variable {vid} allocated on distant node')
-                self.variables[vid] = None
                 return vid
         return
 
     def _alloc_parent(self, request_process):
         self._send({'handler': 'allocation_request', 'request_process': request_process}, self.parent, 1)
+
+        # TODO: Fix deadlock
+
         status = self._receive(self.parent, 2)
         vid = status['data']
         if vid is not None:
-            #self.memory_map[self.parent] -= 1
             self.size -= 1
             self.log(f'Variable {vid} allocated on distant node')
-            self.variables[vid] = None
             return vid
         return
 

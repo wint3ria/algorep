@@ -1,12 +1,7 @@
-from time import sleep
-
 from mpi4py import MPI
-from threading import Thread
 import random
 
-
 from allocator import TreeAllocator, MPI_process, Variable
-
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -60,8 +55,9 @@ class MultipleReadTest1(Application):
             for vid in filter(lambda x: x is not None, vid_buf):
                 var = self.read(vid)
                 if type(var) != Variable:
-                    raise RuntimeError(f'Invalid read operation on app {self.rank} with vid {vid}.\
-                    Read method returned: {var}')
+                    msg = f'Invalid read operation on app {self.rank} with vid {vid}. Read method returned: {var}'
+                    msg += f'\nAllocator rank: {self.allocator_rank}'
+                    raise RuntimeError(msg)
                 self.log(var)
 
 
