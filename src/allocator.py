@@ -67,7 +67,7 @@ class MPI_process:
 class Allocator(MPI_process):
 
     def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
-        super(Allocator, self).__init__(rank, comm, size, verbose)
+        super(Allocator, self).__init__(rank, comm, verbose)
         self.variables = {}
         self.local_size = size
         self.tree_size = tree_size
@@ -294,7 +294,7 @@ class TreeAllocator(Allocator):
                 self.log(f'Variable {vid} allocated on distant node')
                 return vid
         return
-    
+
 
     def _alloc_parent(self, request_process):
         self._send({'handler': 'allocation_request', 'request_process': request_process}, self.parent, 1)
