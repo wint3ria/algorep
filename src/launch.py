@@ -30,18 +30,20 @@ class Application(MPI_process):
         return self._receive(self.allocator_rank, 10)['data']
 
     def allocate(self):
-        self._send({'handler': 'allocation_request'}, self.allocator_rank, 1)
-        return self._receive(self.allocator_rank, 2)['data']
+        self._send({'handler': 'dmalloc'}, self.allocator_rank, 1)
+        return self._receive(self.allocator_rank, 10)['data']
 
 
 class SimpleAllocTest1(Application):
     def run(self):
-        self.log(f'Request allocation')
-        var_id = self.allocate()
-        self.log(f'Allocation done, got id {var_id}')
-        self.log(f'Request read on variable {var_id}')
-        self.log(f'Got this value: {self.read(var_id)}')
-        self.read((self.allocator_rank, self.allocator_rank, 0))
+        while True:
+            self.log(f'Request allocation')
+            var_id = self.allocate()
+            self.log(f'Allocation done, got id {var_id}')
+            if var_id is None:
+                break
+            self.log(f'Request read on variable {var_id}')
+            self.log(f'Got this value: {self.read(var_id)}')
 
 
 class MultipleReadTest1(Application):
@@ -63,7 +65,7 @@ class MultipleReadTest1(Application):
 
 test_applications = [
     SimpleAllocTest1,
-    MultipleReadTest1,
+#    MultipleReadTest1,
 ]
 
 
@@ -83,7 +85,7 @@ def main():
 
     # Run the different applications defined for testing
     if rank >= size // 2:
-        allocator_rank = random.randint(0, size // 2)
+        allocator_rank = random.randint(0, size // 2 - 1)
         for application_ctor in test_applications:
             process = application_ctor(rank, allocator_rank, comm, verbose=VERBOSE, app_com=partition_comm)
             process.run()

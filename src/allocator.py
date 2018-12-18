@@ -45,15 +45,13 @@ class MPI_process:
 
     def _send(self, data, dest, tag):
         data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
-        req = self.comm.isend(data, dest=dest, tag=tag)
-        req.wait()
+        self.comm.isend(data, dest=dest, tag=tag)
         self.clock += 1
         self.log(f"send: {data} on tag {tag}")
 
     def _receive(self, src, tag):
-        req = self.comm.irecv(source=src, tag=tag)
+        data = self.comm.recv(source=src, tag=tag)
         self.log('waiting for {}'.format(src))
-        data = req.wait()
         self.log('done waiting for {}'.format(src))
         self.clock = max(self.clock, data['clock']) + 1
         self.log(f'received: {data} on tag {tag}')
@@ -63,6 +61,7 @@ class MPI_process:
         msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
         self.verbose and print(msg, flush=True)
         self.logfile.write(msg + '\n')
+        self.logfile.flush()
 
 
 class Allocator(MPI_process):
@@ -107,20 +106,13 @@ class TreeAllocator(Allocator):
         self.handlers = {
             'stop': self._stop_handler,
             'stop_request': self._request_stop_handler,
-            'allocation_request': self._alloc_handler,
-            'notification_handler': self._notification_handler,
+            #'allocation_request': self._alloc_handler,
+            #'notification_handler': self._notification_handler,
+            'dmalloc': self.dmalloc,
+            'dmalloc_response_handler': self.dmalloc_response_handler,
             'read_variable': self.read_variable,
             'read_response_handler': self.read_response_handler,
         }
-
-    def dmalloc(self, request_process=None):
-        self.clock += 1
-        res = self._alloc_local(request_process or self.rank)
-        if not res:
-            res = self._alloc_children(request_process or self.rank)
-        if not res and self.parent is not None:
-            res = self._alloc_parent(request_process or self.rank)
-        return res
 
     def read_response_handler(self, metadata):
         data = metadata['data']
@@ -191,6 +183,77 @@ class TreeAllocator(Allocator):
         else:
             self._stop_handler(None)
 
+
+    def dmalloc_response_handler(self, metadata):
+        data = metadata['data']
+        dst = data['send_back'].pop()
+        if data['vid'] is None and metadata['src'] in self.children:
+            self.memory_map[metadata['src']] = 0
+        if len(data['send_back']):
+            self._send(data, dst, 1)
+            return
+        self._send(data['vid'], dst, 10)
+
+
+    def dmalloc(self, metadata):
+        data = metadata['data']
+        if 'send_back' not in data:
+            data['send_back'] = [metadata['src']]
+
+        if metadata['src'] in self.children:
+            self.memory_map[metadata['src']] = 0
+
+        if self.local_size > 0:
+            self.local_size -= 1
+            var = Variable(data['send_back'][0], self.rank)
+            self.variables[var.id] = var
+            data['vid'] = var.id
+            data['handler'] = 'dmalloc_response_handler'
+            metadata['data'] = data
+            self.dmalloc_response_handler(metadata)
+            return
+
+        if self.memory_map is not None:
+            children = [x for x in self.children if self.memory_map[x] > 0]
+            if len(children) != 0:
+                child = min(children)
+                data['send_back'].append(self.rank)
+                self.memory_map[child] -= 1
+                self._send(data, child, 1)
+                return
+
+        if self.parent is not None:
+            data['send_back'].append(self.rank)
+            self._send(data, self.parent, 1)
+            return
+
+        data['vid'] = None
+        data['handler'] = 'dmalloc_response_handler'
+        metadata['data'] = data
+        self.dmalloc_response_handler(metadata)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    '''
+    def dmalloc(self, request_process=None):
+        self.clock += 1
+        res = self._alloc_local(request_process or self.rank)
+        if not res:
+            res = self._alloc_children(request_process or self.rank)
+        if not res and self.parent is not None:
+            res = self._alloc_parent(request_process or self.rank)
+        return res
+
     def _alloc_local(self, request_process):
         if len([x for x in self.variables if self.variables[x] is not None]) < self.local_size:
             var = Variable(request_process, self.rank)
@@ -221,7 +284,7 @@ class TreeAllocator(Allocator):
         for child in children:
             self._send({'handler': 'allocation_request', 'request_process': request_process}, child, 1)
 
-            # TODO: fix deadlock
+            # TODO: Fix deadlock
 
             status = self._receive(child, 2)
             vid = status['data']
@@ -231,6 +294,7 @@ class TreeAllocator(Allocator):
                 self.log(f'Variable {vid} allocated on distant node')
                 return vid
         return
+    
 
     def _alloc_parent(self, request_process):
         self._send({'handler': 'allocation_request', 'request_process': request_process}, self.parent, 1)
@@ -244,7 +308,7 @@ class TreeAllocator(Allocator):
             self.log(f'Variable {vid} allocated on distant node')
             return vid
         return
-
+    '''
 
 
 
