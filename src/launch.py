@@ -3,6 +3,7 @@ import random
 
 from allocator import MPI_process, Variable
 from tree_allocator import TreeAllocator
+from allocator import TreeAllocator, MPI_process, Variable, Array
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -11,7 +12,7 @@ VERBOSE = True
 random.seed(rank)
 
 nb_children = 3
-node_size = 2
+node_size = 20
 
 
 class Application(MPI_process):
@@ -54,7 +55,7 @@ class Application(MPI_process):
 
 class SimpleAllocTest(Application):
     def run(self):
-        while True:
+        for _ in range(5):
             self.log(f'Request allocation')
             var_id = self.allocate()
             self.log(f'Allocation done, got id {var_id}')
@@ -74,7 +75,7 @@ class MultipleReadTest(Application):
         for vid_buf in recv_vid_buf:
             for vid in filter(lambda x: x is not None, vid_buf):
                 var = self.read(vid)
-                if type(var) != Variable:
+                if type(var) != Variable and type(var) != Array:
                     msg = f'Invalid read operation on app {self.rank} with vid {vid}. Read method returned: {var}'
                     msg += f'\nAllocator rank: {self.allocator_rank}'
                     raise RuntimeError(msg)
@@ -115,18 +116,30 @@ class SimpleWriteTest(Application):
                 break
 
 
+class SimpleArrayTest1(Application):
+    def allocate(self):
+        self._send({'handler': 'dmalloc', 'size': 2}, self.allocator_rank, 1)
+        return self._receive(self.allocator_rank, 10)['data']
+
+    def run(self):
+        self.log('Array allocation test')
+        var = self.allocate()
+        self.log(f'Received {var}')
+
+
 test_applications = [
-    # SimpleAllocTest,
-    SimpleWriteTest,
+    #SimpleWriteTest,
     # SimpleFreeTest,
     # MultipleReadTest,
+    #SimpleAllocTest1,
+    #MultipleReadTest1,
+    SimpleArrayTest1,
 ]
 
 
 def main():
     if size < 2:
         raise RuntimeError('No process is assigned to the application')
-
     if rank < size // 2:
         process = TreeAllocator(rank, nb_children, comm, node_size, size // 2, verbose=VERBOSE)
 
