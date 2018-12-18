@@ -112,6 +112,8 @@ class TreeAllocator(Allocator):
             'dmalloc_response_handler': self.dmalloc_response_handler,
             'read_variable': self.read_variable,
             'read_response_handler': self.read_response_handler,
+            'dfree': self.dfree,
+            'dfree_response_handler': self.dfree_response_handler,
         }
 
     def read_response_handler(self, metadata):
@@ -149,6 +151,52 @@ class TreeAllocator(Allocator):
         if owner in children or owner == self.parent:
             self.log('Child or parent owns the variable')
             data['handler'] = 'read_response_handler'
+            self._send(data, owner, 1)
+            return
+
+        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
+        if is_ancestor:
+            self._send(data, path[-2], 1)
+            return
+        self._send(data, self.parent, 1)
+
+    def dfree_response_handler(self, metadata):
+        data = metadata['data']
+        dst = data['send_back'].pop()
+        if 'variable' not in data:
+            data['variable'] = self.variables[data['vid']]
+        if len(data['send_back']):
+            self._send(data, dst, 1)
+            return
+        self.variables.pop(data['vid'], None)
+        self.local_size += 1
+        self._send(True, dst, 10)
+
+    def dfree(self, metadata):
+        data = metadata['data']
+        vid = data['vid']
+        owner = vid[1]
+
+        send_back = data['send_back']
+        if type(send_back) == int:
+            self.log(f'First API call for dfree {vid} from {send_back}')
+            data['src'] = send_back
+            send_back = [send_back]
+        data['send_back'] = send_back
+
+        if vid in self.variables:
+            metadata['data'] = data
+            self.dfree_response_handler(metadata)
+            return
+
+        src = data['src']
+        children = [child for child in self.children if child != src]
+        data['src'] = self.rank
+        send_back.append(self.rank)
+
+        if owner in children or owner == self.parent:
+            self.log('Child or parent owns the variable')
+            data['handler'] = 'dfree_response_handler'
             self._send(data, owner, 1)
             return
 

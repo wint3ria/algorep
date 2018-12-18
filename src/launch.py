@@ -33,6 +33,14 @@ class Application(MPI_process):
         self._send({'handler': 'dmalloc'}, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
 
+    def free(self, vid):
+        self._send({
+                'handler': 'dfree',
+                'send_back': self.rank,
+                'vid': vid,
+            }, self.allocator_rank, 1)
+        return self._receive(self.allocator_rank, 10)
+
 
 class SimpleAllocTest1(Application):
     def run(self):
@@ -62,9 +70,25 @@ class MultipleReadTest1(Application):
                     raise RuntimeError(msg)
                 self.log(var)
 
+class SimpleFreeTest(Application):
+    def run(self):
+        free_tries = 2
+        while free_tries:
+            self.log(f'Request allocation')
+            var_id = self.allocate()
+            self.log(f'Allocation done, got id {var_id}')
+            if var_id is None:
+                break
+            self.log(f'Request free on variable {var_id}')
+            freed = self.free(var_id)['data']
+            self.log(f'Freed: {freed}')
+            if freed:
+                free_tries -= 1
+
 
 test_applications = [
-    SimpleAllocTest1,
+    # SimpleAllocTest1,
+    SimpleFreeTest,
 #    MultipleReadTest1,
 ]
 
