@@ -1,7 +1,18 @@
 from mpi4py import MPI
-from storage import Variable, Array
 from mpi_process import MPI_process
 import traceback
+
+
+handlers = []
+translation_table = {}
+
+
+def register_handler(handler, name=None):
+    name = name or handler.__name__
+    translation_table[name] = len(handlers)
+    handler.id = len(handlers)
+    handlers.append(handler)
+    return handler
 
 
 class Allocator(MPI_process):
@@ -11,18 +22,18 @@ class Allocator(MPI_process):
         self.local_size = size
         self.tree_size = tree_size
         self.stop = False
-        self.handlers = {}
         self.allow_notifications = allow_notifications
 
     def run(self):
         while not self.stop:
             try:
                 request = self._receive(MPI.ANY_SOURCE, 1)
-                handler_id = request['data']['handler']
-                self.log(f'Call handler "{handler_id}"')
-                if handler_id not in self.handlers:
-                    raise RuntimeError(f'No available handler for this id {handler_id}')
-                self.handlers[handler_id](request)
+                handler_name = request['data']['handler']
+                self.log(f'Call handler "{handler_name}"')
+                if handler_name not in translation_table:
+                    raise RuntimeError(f'No available handler for this id {handler_name}')
+                handlers[translation_table[handler_name]](self, request)
+
             except Exception as e:
                 self.log(f'exception: {traceback.format_exc()}')
                 self.stop = True

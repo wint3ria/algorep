@@ -1,8 +1,9 @@
-from allocator import Allocator
+from allocator import Allocator, register_handler
 from storage import Variable, Array
 
 
 class TreeAllocator(Allocator):
+
     def __init__(self, rank, nb_children, comm, size, tree_size, verbose=False):
         super(TreeAllocator, self).__init__(rank, comm, size, tree_size, verbose)
         self.nb_children = nb_children
@@ -16,19 +17,8 @@ class TreeAllocator(Allocator):
             self.memory_map = dict([(x, 0) for x in self.children])
         self.size = size
         self._init_memory()
-        self.handlers = {
-            'stop': self._stop_handler,
-            'stop_request': self._request_stop_handler,
-            'dmalloc': self.dmalloc,
-            'dmalloc_response_handler': self.dmalloc_response_handler,
-            'read_variable': self.read_variable,
-            'read_response_handler': self.read_response_handler,
-            'dfree': self.dfree,
-            'dfree_response_handler': self.dfree_response_handler,
-            'dwrite': self.dwrite,
-            'dwrite_response_handler': self.dwrite_response_handler,
-        }  # TODO: proper registering decorators, and use MPI tags
 
+    @register_handler
     def read_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -39,9 +29,11 @@ class TreeAllocator(Allocator):
             return
         self._send(data['variable'], dst, 10)
 
+    @register_handler
     def read_variable(self, metadata):
         self.dsearch(metadata, self.read_response_handler, 'read_variable')
 
+    @register_handler
     def dfree_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -54,9 +46,11 @@ class TreeAllocator(Allocator):
         self.local_size += 1
         self._send(True, dst, 10)
 
+    @register_handler
     def dfree(self, metadata):
         self.dsearch(metadata, self.dfree_response_handler, 'dfree')
 
+    @register_handler
     def dwrite_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -74,6 +68,7 @@ class TreeAllocator(Allocator):
             self.log(f'Didn\'t write {vid} because the clock is too late')
             self._send(False, dst, 10)
 
+    @register_handler
     def dwrite(self, metadata, direct_addressing=False):
         self.dsearch(metadata, self.dwrite_response_handler, 'dwrite')
 
@@ -87,21 +82,24 @@ class TreeAllocator(Allocator):
             self._send(self.size, self.parent, 0)
         self.log('end of init_memory. subtree size: {}; memory map: {}'.format(self.size, self.memory_map))
 
+    @register_handler
     def _stop_handler(self, data):
         self.stop = True
         for child in self.children:
-            self._send({'handler': 'stop'}, child, 1)
+            self._send({'handler': '_stop_handler'}, child, 1)
         self.log(f'End of process {self.rank}, variables:\n{self.variables}')
 
+    @register_handler
     def _request_stop_handler(self, data):
         if self.rank:
-            new_data = {'handler': 'stop_request'}
+            new_data = {'handler': '_request_stop_handler'}
             if 'message' in data:
                 new_data['message'] = data['message']
             self._send(new_data, self.parent, 1)
         else:
             self._stop_handler(None)
 
+    @register_handler
     def dmalloc_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -112,6 +110,7 @@ class TreeAllocator(Allocator):
             return
         self._send(data['vid'], dst, 10)
 
+    @register_handler
     def dmalloc(self, metadata):
         data = metadata['data']
         if 'send_back' not in data:
@@ -167,6 +166,7 @@ class TreeAllocator(Allocator):
         metadata['data'] = data
         self.dmalloc_response_handler(metadata)
 
+    @register_handler
     def dsearch(self, metadata, handler_to_call, caller_name, direct_addressing=False):
         data = metadata['data']
         vid = data['vid']
@@ -219,21 +219,3 @@ class TreeAllocator(Allocator):
         if an == 0:
             return False, None
         return self._is_ancestor(a, an, k, l)
-
-    def _notify_allocation(self, vid):
-        if self.parent is not None:
-            self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, self.parent, 1)
-        for child in self.children:
-            self._send({'data': {'vid': vid, 'from': self.rank}, 'handler': 'notification_handler'}, child, 1)
-
-    def _notification_handler(self, data):
-        src = data['src']
-        data = data['data']
-        vid = data['data']['vid']
-        self.log(f'Allocation notification with vid {vid}, metadata: {data}')
-        self.variables[vid] = None
-        if self.parent is not None and self.parent != src:
-            self._send({'data': data['data'], 'handler': 'notification_handler'}, self.parent, 1)
-        children = [c for c in self.children if c != src]
-        for child in children:
-            self._send({'handler': 'notification_handler', 'data': data['data']}, child, 1)

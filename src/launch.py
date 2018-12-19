@@ -2,7 +2,8 @@ from mpi4py import MPI
 import random
 
 from tree_allocator import TreeAllocator
-from allocator import MPI_process, Variable, Array
+from allocator import MPI_process
+from storage import Variable, Array
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -11,7 +12,7 @@ VERBOSE = True
 random.seed(rank)
 
 nb_children = 3
-node_size = 2
+node_size = 5
 
 
 class Application(MPI_process):
@@ -170,7 +171,7 @@ def main():
     # Call termination function
     if rank == size // 2:
         process.log('Call termination procedure on allocator')
-        process._send({'handler': 'stop_request'}, process.allocator_rank, 1)
+        process._send({'handler': '_request_stop_handler'}, process.allocator_rank, 1)
 
 
 if __name__ == "__main__":
