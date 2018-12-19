@@ -41,8 +41,17 @@ class Application(MPI_process):
             }, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)
 
+    def write(self, vid, value):
+        self._send({
+                'handler': 'dwrite',
+                'send_back': self.rank,
+                'vid': vid,
+                'value': value,
+            }, self.allocator_rank, 1)
+        return self._receive(self.allocator_rank, 10)
 
-class SimpleAllocTest1(Application):
+
+class SimpleAllocTest(Application):
     def run(self):
         while True:
             self.log(f'Request allocation')
@@ -51,10 +60,10 @@ class SimpleAllocTest1(Application):
             if var_id is None:
                 break
             self.log(f'Request read on variable {var_id}')
-            self.log(f'Got this value: {self.read(var_id)}')
+            self.log(f'Got this value: {self.read(var_id).value}')
 
 
-class MultipleReadTest1(Application):
+class MultipleReadTest(Application):
     def run(self):
         self.log('Request Allocation')
         vid = self.allocate()
@@ -85,11 +94,31 @@ class SimpleFreeTest(Application):
             if freed:
                 free_tries -= 1
 
+class SimpleWriteTest(Application):
+    def run(self):
+        while True:
+            self.log(f'Request allocation')
+            var_id = self.allocate()
+            self.log(f'Allocation done, got id {var_id}')
+            if var_id is None:
+                break
+            self.log(f'Request read on variable {var_id}')
+            self.log(f'Got this value: {self.read(var_id)}')
+            value = 67
+            self.log(f'Request write on variable {var_id} with value {value}')
+            wrote = self.write(var_id, value)['data']
+            self.log(f'Wrote: {wrote}')
+            self.log(f'Request read on variable {var_id}')
+            self.log(f'Got this value: {self.read(var_id)}')
+            if wrote:
+                break
+
 
 test_applications = [
-    # SimpleAllocTest1,
-    SimpleFreeTest,
-#    MultipleReadTest1,
+    # SimpleAllocTest,
+    SimpleWriteTest,
+    # SimpleFreeTest,
+#    MultipleReadTest,
 ]
 
 
