@@ -134,38 +134,7 @@ class TreeAllocator(Allocator):
         self._send(data['variable'], dst, 10)
 
     def read_variable(self, metadata):
-        data = metadata['data']
-        vid = data['vid']
-        owner = vid[1]
-
-        send_back = data['send_back']
-        if type(send_back) == int:
-            self.log(f'First API call for read_variable {vid} from {send_back}')
-            data['src'] = send_back
-            send_back = [send_back]
-        data['send_back'] = send_back
-
-        if vid in self.variables:
-            metadata['data'] = data
-            self.read_response_handler(metadata)
-            return
-
-        src = data['src']
-        children = [child for child in self.children if child != src]
-        data['src'] = self.rank
-        send_back.append(self.rank)
-
-        if owner in children or owner == self.parent:
-            self.log('Child or parent owns the variable')
-            data['handler'] = 'read_response_handler'
-            self._send(data, owner, 1)
-            return
-
-        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
-        if is_ancestor:
-            self._send(data, path[-2], 1)
-            return
-        self._send(data, self.parent, 1)
+        self.dsearch(metadata, self.read_response_handler, 'read_variable')
 
     def dfree_response_handler(self, metadata):
         data = metadata['data']
@@ -180,38 +149,7 @@ class TreeAllocator(Allocator):
         self._send(True, dst, 10)
 
     def dfree(self, metadata):
-        data = metadata['data']
-        vid = data['vid']
-        owner = vid[1]
-
-        send_back = data['send_back']
-        if type(send_back) == int:
-            self.log(f'First API call for dfree {vid} from {send_back}')
-            data['src'] = send_back
-            send_back = [send_back]
-        data['send_back'] = send_back
-
-        if vid in self.variables:
-            metadata['data'] = data
-            self.dfree_response_handler(metadata)
-            return
-
-        src = data['src']
-        children = [child for child in self.children if child != src]
-        data['src'] = self.rank
-        send_back.append(self.rank)
-
-        if owner in children or owner == self.parent:
-            self.log('Child or parent owns the variable')
-            data['handler'] = 'dfree_response_handler'
-            self._send(data, owner, 1)
-            return
-
-        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
-        if is_ancestor:
-            self._send(data, path[-2], 1)
-            return
-        self._send(data, self.parent, 1)
+        self.dsearch(metadata, self.dfree_response_handler, 'dfree')
 
     def dwrite_response_handler(self, metadata):
         data = metadata['data']
@@ -230,43 +168,7 @@ class TreeAllocator(Allocator):
             self._send(False, dst, 10)
 
     def dwrite(self, metadata, direct_addressing=False):
-        data = metadata['data']
-        vid = data['vid']
-        owner = vid[1]
-
-        send_back = data['send_back']
-        if type(send_back) == int:
-            self.log(f'First API call for dwrite {vid} from {send_back}')
-            data['src'] = send_back
-            send_back = [send_back]
-        data['send_back'] = send_back
-
-        if direct_addressing:  # Doesn't work, use direct_addressing=False
-            send_back.append(owner)
-            self.dwrite_response_handler(metadata)
-            return
-
-        if vid in self.variables:
-            metadata['data'] = data
-            self.dwrite_response_handler(metadata)
-            return
-
-        src = data['src']
-        children = [child for child in self.children if child != src]
-        data['src'] = self.rank
-        send_back.append(self.rank)
-
-        if owner in children or owner == self.parent:
-            self.log('Child or parent owns the variable')
-            data['handler'] = 'dwrite_response_handler'
-            self._send(data, owner, 1)
-            return
-
-        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
-        if is_ancestor:
-            self._send(data, path[-2], 1)
-            return
-        self._send(data, self.parent, 1)
+        self.dsearch(metadata, self.dwrite_response_handler, 'dwrite')
 
     def _init_memory(self):
         self.log('call init memory')
@@ -342,8 +244,45 @@ class TreeAllocator(Allocator):
         metadata['data'] = data
         self.dmalloc_response_handler(metadata)
 
+    def dsearch(self, metadata, handler_to_call, caller_name, direct_addressing=False):
+        data = metadata['data']
+        vid = data['vid']
+        owner = vid[1]
 
+        send_back = data['send_back']
+        if type(send_back) == int:
+            self.log(f'First API call for {caller_name} {vid} from {send_back}')
+            data['src'] = send_back
+            send_back = [send_back]
+        data['send_back'] = send_back
 
+        if direct_addressing:  # Doesn't work, use direct_addressing=False
+            metadata['data'] = data
+            send_back.append(owner)
+            handler_to_call(metadata)
+            return
+
+        if vid in self.variables:
+            metadata['data'] = data
+            handler_to_call(metadata)
+            return
+
+        src = data['src']
+        children = [child for child in self.children if child != src]
+        data['src'] = self.rank
+        send_back.append(self.rank)
+
+        if owner in children or owner == self.parent:
+            self.log('Child or parent owns the variable')
+            data['handler'] = handler_to_call.__name__
+            self._send(data, owner, 1)
+            return
+
+        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
+        if is_ancestor:
+            self._send(data, path[-2], 1)
+            return
+        self._send(data, self.parent, 1)
 
 
 

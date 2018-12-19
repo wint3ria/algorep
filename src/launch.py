@@ -118,7 +118,7 @@ test_applications = [
     # SimpleAllocTest,
     SimpleWriteTest,
     # SimpleFreeTest,
-#    MultipleReadTest,
+    # MultipleReadTest,
 ]
 
 
