@@ -159,9 +159,10 @@ class TreeAllocator(Allocator):
         if len(data['send_back']):
             self._send(data, dst, 1)
             return
-        if self.variables[data['vid']].last_write_clock < self.clock:
+        # metadata['clock'] is the source client's clock
+        if self.variables[data['vid']].last_write_clock < metadata['clock']:
             self.variables[data['vid']].value = data['value']
-            self.variables[data['vid']].last_write_clock = self.clock
+            self.variables[data['vid']].last_write_clock = metadata['clock']
             self._send(True, dst, 10)
         else:
             self.log(f'Didn\'t write {vid} because the clock is too late')
