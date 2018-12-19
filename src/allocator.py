@@ -30,20 +30,14 @@ class Variable(Storage):
         else:
             super().__init__(vid)
         self.value = None
-        self.ready = True
 
 
 class Array(Variable):
-    def __init__(self, request_process, rank, size, local_available):
+    def __init__(self, request_process, rank, size, next):
         super().__init__(request_process, rank)
-        self.local_ready = True
-        self.outer_ready = False
-        self.size = min(size, local_available)
-        if size < local_available:
-            self.indexes = {rank: size}
-            self.outer_ready = True
-            return
+        self.size = size
         self.value = [None] * self.size
+        self.next = next
 
 
 class MPI_process:
@@ -120,7 +114,7 @@ class TreeAllocator(Allocator):
             'dmalloc_response_handler': self.dmalloc_response_handler,
             'read_variable': self.read_variable,
             'read_response_handler': self.read_response_handler,
-        }
+        }  # TODO: proper registering decorators, and use MPI tags
 
     def read_response_handler(self, metadata):
         data = metadata['data']
@@ -208,30 +202,43 @@ class TreeAllocator(Allocator):
             data['send_back'] = [metadata['src']]
         if metadata['src'] in self.children:
             self.memory_map[metadata['src']] = 0
+        next = None
 
-        if 'size' in data:
+        if 'prev' in data:
+            next = data['prev']
+        if 'size' not in data:
             ctor = Variable
+            size = 1
         else:
-            ctor = lambda req, rank: Array(req, rank, 2, self.local_size)
+            size = data['size']
+            ctor = lambda req, rank: Array(req, rank, min(size, self.local_size), next)
 
-        if self.local_size > 0:
-            self.local_size -= 1
+        local_alloc_size = min(size, self.local_size)
+        child_alloc_size = size - local_alloc_size
+
+        var = None
+        if local_alloc_size != 0:
+            self.local_size -= local_alloc_size
             var = ctor(data['send_back'][0], self.rank)
-            if not var.ready:
-                self.test(var)
             self.variables[var.id] = var
             data['vid'] = var.id
-            data['handler'] = 'dmalloc_response_handler'
-            metadata['data'] = data
-            self.dmalloc_response_handler(metadata)
-            return
+            if child_alloc_size == 0:
+                data['handler'] = 'dmalloc_response_handler'
+                metadata['data'] = data
+                self.dmalloc_response_handler(metadata)
+                return
+
+        data['size'] = child_alloc_size
+        data['prev'] = None
+        if var is not None:
+            data['prev'] = var.id
 
         if self.memory_map is not None:
-            children = [x for x in self.children if self.memory_map[x] > 0]
+            children = [x for x in self.children if self.memory_map[x] > 0]  # TODO: exclusion list
             if len(children) != 0:
                 child = min(children)
                 data['send_back'].append(self.rank)
-                self.memory_map[child] -= 1
+                self.memory_map[child] -= 1  # TODO: exclusion list
                 self._send(data, child, 1)
                 return
 

@@ -12,7 +12,7 @@ VERBOSE = True
 random.seed(rank)
 
 nb_children = 3
-node_size = 20
+node_size = 2
 
 
 class Application(MPI_process):
@@ -118,13 +118,23 @@ class SimpleWriteTest(Application):
 
 class SimpleArrayTest1(Application):
     def allocate(self):
-        self._send({'handler': 'dmalloc', 'size': 2}, self.allocator_rank, 1)
+        self._send({'handler': 'dmalloc', 'size': 4}, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
 
     def run(self):
-        self.log('Array allocation test')
-        var = self.allocate()
-        self.log(f'Received {var}')
+        if self.app_com.Get_rank() == 0:
+            self.log('Array allocation test')
+            vid = self.allocate()
+            self.log(f'Received {vid}')
+            var = self.read(vid)
+            self.log('Printing linked list:')
+            l = []
+            while True:
+                l.append(var)
+                if var.next is None:
+                    break
+                var = self.read(var.next)
+            self.log(f'Printing the linked list: {l}')
 
 
 test_applications = [
