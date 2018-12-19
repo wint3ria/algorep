@@ -1,7 +1,8 @@
 from mpi4py import MPI
 import random
 
-from allocator import TreeAllocator, MPI_process, Variable
+from allocator import MPI_process, Variable
+from tree_allocator import TreeAllocator
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
