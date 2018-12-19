@@ -2,8 +2,7 @@ from allocator import Allocator, register_handler
 from storage import Variable, Array
 
 
-class TreeAllocator(Allocator):
-
+class TreeAllocator(Allocator):  # TODO: docstrings
     def __init__(self, rank, nb_children, comm, size, tree_size, verbose=False):
         super(TreeAllocator, self).__init__(rank, comm, size, tree_size, verbose)
         self.nb_children = nb_children
@@ -12,7 +11,7 @@ class TreeAllocator(Allocator):
         self.parent = None
         if rank:
             self.parent = (rank - 1) // nb_children
-        self.memory_map = None
+        self.memory_map = None  # TODO: exclusion lists
         if self.children:
             self.memory_map = dict([(x, 0) for x in self.children])
         self.size = size
@@ -45,6 +44,8 @@ class TreeAllocator(Allocator):
         self.variables.pop(data['vid'], None)
         self.local_size += 1
         self._send(True, dst, 10)
+
+    # TODO: handle arrays read/write/free
 
     @register_handler
     def dfree(self, metadata):
@@ -83,14 +84,14 @@ class TreeAllocator(Allocator):
         self.log('end of init_memory. subtree size: {}; memory map: {}'.format(self.size, self.memory_map))
 
     @register_handler
-    def _stop_handler(self, data):
+    def _stop_handler(self, metadata):
         self.stop = True
         for child in self.children:
             self._send({'handler': '_stop_handler'}, child, 1)
         self.log(f'End of process {self.rank}, variables:\n{self.variables}')
 
     @register_handler
-    def _request_stop_handler(self, data):
+    def _request_stop_handler(self, metadata):
         if self.rank:
             new_data = {'handler': '_request_stop_handler'}
             if 'message' in data:
@@ -166,7 +167,6 @@ class TreeAllocator(Allocator):
         metadata['data'] = data
         self.dmalloc_response_handler(metadata)
 
-    @register_handler
     def dsearch(self, metadata, handler_to_call, caller_name, direct_addressing=False):
         data = metadata['data']
         vid = data['vid']
@@ -201,21 +201,22 @@ class TreeAllocator(Allocator):
             self._send(data, owner, 1)
             return
 
-        is_ancestor, path = self._is_ancestor(self.rank, owner, self.nb_children)
+        is_ancestor, path = _is_ancestor(self.rank, owner, self.nb_children)
         if is_ancestor:
             self._send(data, path[-2], 1)
             return
         self._send(data, self.parent, 1)
 
-    def _is_ancestor(self, a, n, k, l=list()):
-        if n == 0:
-            return False, l
-        if a == 0:
-            return True, l
-        an = (n - 1) // k
-        l.append(an)
-        if an == a:
-            return True, l
-        if an == 0:
-            return False, None
-        return self._is_ancestor(a, an, k, l)
+
+def _is_ancestor(a, n, k, l=list()):
+    if n == 0:
+        return False, l
+    if a == 0:
+        return True, l
+    an = (n - 1) // k
+    l.append(an)
+    if an == a:
+        return True, l
+    if an == 0:
+        return False, None
+    return _is_ancestor(a, an, k, l)

@@ -9,6 +9,9 @@ class Storage:
         return hash(self.id)
 
 
+# TODO: Better access/write methods
+
+
 class Variable(Storage):
     def __init__(self, request_process, rank, vid=None):
         if vid is None:

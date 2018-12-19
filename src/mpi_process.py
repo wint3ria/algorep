@@ -1,18 +1,3 @@
-from mpi4py import MPI
-
-'''
-MPI tags
-
-0: init memory
-1: ask execution of a procedure
-2: allocation result
-3: request stop procedure
-4: notify a local allocation
-5: read request
-10: public interface responses
-'''
-
-
 class MPI_process:
     def __init__(self, rank, comm, verbose, clock=0):
         self.rank = rank
@@ -20,6 +5,8 @@ class MPI_process:
         self.comm = comm
         self.clock = clock
         self.logfile = open(f'process{self.rank}.log', 'w')
+
+    # TODO: better src/dst handling using MPI status objects
 
     def _send(self, data, dest, tag):
         data = {'clock': self.clock, 'data': data, 'src': self.rank, 'dst': dest}
