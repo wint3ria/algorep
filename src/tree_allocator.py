@@ -1,5 +1,5 @@
 from allocator import Allocator
-from storage import Variable
+from storage import Variable, Array
 
 
 class TreeAllocator(Allocator):
@@ -19,8 +19,6 @@ class TreeAllocator(Allocator):
         self.handlers = {
             'stop': self._stop_handler,
             'stop_request': self._request_stop_handler,
-            #'allocation_request': self._alloc_handler,
-            #'notification_handler': self._notification_handler,
             'dmalloc': self.dmalloc,
             'dmalloc_response_handler': self.dmalloc_response_handler,
             'read_variable': self.read_variable,
@@ -29,7 +27,7 @@ class TreeAllocator(Allocator):
             'dfree_response_handler': self.dfree_response_handler,
             'dwrite': self.dwrite,
             'dwrite_response_handler': self.dwrite_response_handler,
-        }
+        }  # TODO: proper registering decorators, and use MPI tags
 
     def read_response_handler(self, metadata):
         data = metadata['data']
@@ -104,7 +102,6 @@ class TreeAllocator(Allocator):
         else:
             self._stop_handler(None)
 
-
     def dmalloc_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -115,31 +112,49 @@ class TreeAllocator(Allocator):
             return
         self._send(data['vid'], dst, 10)
 
-
     def dmalloc(self, metadata):
         data = metadata['data']
         if 'send_back' not in data:
             data['send_back'] = [metadata['src']]
-
         if metadata['src'] in self.children:
             self.memory_map[metadata['src']] = 0
+        next = None
 
-        if self.local_size > 0:
-            self.local_size -= 1
-            var = Variable(data['send_back'][0], self.rank)
+        if 'prev' in data:
+            next = data['prev']
+        if 'size' not in data:
+            ctor = Variable
+            size = 1
+        else:
+            size = data['size']
+            ctor = lambda req, rank: Array(req, rank, min(size, self.local_size), next)
+
+        local_alloc_size = min(size, self.local_size)
+        child_alloc_size = size - local_alloc_size
+
+        var = None
+        if local_alloc_size != 0:
+            self.local_size -= local_alloc_size
+            var = ctor(data['send_back'][0], self.rank)
             self.variables[var.id] = var
             data['vid'] = var.id
-            data['handler'] = 'dmalloc_response_handler'
-            metadata['data'] = data
-            self.dmalloc_response_handler(metadata)
-            return
+            if child_alloc_size == 0:
+                data['handler'] = 'dmalloc_response_handler'
+                metadata['data'] = data
+                self.dmalloc_response_handler(metadata)
+                return
+
+        data['size'] = child_alloc_size
+        data['prev'] = None
+        if var is not None:
+            data['prev'] = var.id
 
         if self.memory_map is not None:
-            children = [x for x in self.children if self.memory_map[x] > 0]
+            children = [x for x in self.children if self.memory_map[x] > 0]  # TODO: exclusion list
             if len(children) != 0:
                 child = min(children)
                 data['send_back'].append(self.rank)
-                self.memory_map[child] -= 1
+                self.memory_map[child] -= 1  # TODO: exclusion list
                 self._send(data, child, 1)
                 return
 
@@ -147,7 +162,6 @@ class TreeAllocator(Allocator):
             data['send_back'].append(self.rank)
             self._send(data, self.parent, 1)
             return
-
         data['vid'] = None
         data['handler'] = 'dmalloc_response_handler'
         metadata['data'] = data
@@ -192,101 +206,6 @@ class TreeAllocator(Allocator):
             self._send(data, path[-2], 1)
             return
         self._send(data, self.parent, 1)
-
-
-
-
-
-
-
-
-
-
-    '''
-    def dmalloc(self, request_process=None):
-        self.clock += 1
-        res = self._alloc_local(request_process or self.rank)
-        if not res:
-            res = self._alloc_children(request_process or self.rank)
-        if not res and self.parent is not None:
-            res = self._alloc_parent(request_process or self.rank)
-        return res
-
-    def _alloc_local(self, request_process):
-        if len([x for x in self.variables if self.variables[x] is not None]) < self.local_size:
-            var = Variable(request_process, self.rank)
-            self.variables[var.id] = var
-            if self.allow_notifications:
-                self._notify_allocation(var.id)
-            return var.id
-        return None
-
-    def _alloc_handler(self, data):
-        self.log('Alloc handler')
-
-        request_process = None
-        if 'request_process' in data:
-            request_process = data['request_process']
-
-        res = self.dmalloc(request_process)
-        if self.parent:
-            self._send(res, self.parent, 2)
-        else:
-            self._send(res, data['src'], 2)
-
-    def _alloc_children(self, request_process):
-        if request_process in self.children:
-            self.log('setting children {} memory to 0. memory map: {}'.format(request_process, self.memory_map))
-            self.memory_map[request_process] = 0
-        children = filter(lambda c: self.memory_map[c] > 0, self.children)
-        for child in children:
-            self._send({'handler': 'allocation_request', 'request_process': request_process}, child, 1)
-
-            # TODO: Fix deadlock
-
-            status = self._receive(child, 2)
-            vid = status['data']
-            if vid is not None:
-                self.memory_map[child] -= 1
-                self.size -= 1
-                self.log(f'Variable {vid} allocated on distant node')
-                return vid
-        return
-
-
-    def _alloc_parent(self, request_process):
-        self._send({'handler': 'allocation_request', 'request_process': request_process}, self.parent, 1)
-
-        # TODO: Fix deadlock
-
-        status = self._receive(self.parent, 2)
-        vid = status['data']
-        if vid is not None:
-            self.size -= 1
-            self.log(f'Variable {vid} allocated on distant node')
-            return vid
-        return
-    '''
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     def _is_ancestor(self, a, n, k, l=list()):
         if n == 0:

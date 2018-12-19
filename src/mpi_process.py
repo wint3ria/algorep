@@ -12,6 +12,7 @@ MPI tags
 10: public interface responses
 '''
 
+
 class MPI_process:
     def __init__(self, rank, comm, verbose, clock=0):
         self.rank = rank

@@ -23,3 +23,11 @@ class Variable(Storage):
     def __repr__(self):
         default_repr = f'{self.__class__.__module__}.{self.__class__.__name__} at {hex(id(self))}'
         return f'<{default_repr}, val={self.value}>'
+
+
+class Array(Variable):
+    def __init__(self, request_process, rank, size, next):
+        super().__init__(request_process, rank)
+        self.size = size
+        self.value = [None] * self.size
+        self.next = next
