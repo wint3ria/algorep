@@ -33,6 +33,11 @@ class Variable(Storage):
         else:
             super().__init__(vid)
         self.value = None
+        self.last_write_clock = -1
+
+    def __repr__(self):
+        default_repr = f'{self.__class__.__module__}.{self.__class__.__name__} at {hex(id(self))}'
+        return f'<{default_repr}, val={self.value}>'
 
 
 class MPI_process:
@@ -216,8 +221,13 @@ class TreeAllocator(Allocator):
         if len(data['send_back']):
             self._send(data, dst, 1)
             return
-        self.variables[data['vid']] = data['value']
-        self._send(True, dst, 10)
+        if self.variables[data['vid']].last_write_clock < self.clock:
+            self.variables[data['vid']].value = data['value']
+            self.variables[data['vid']].last_write_clock = self.clock
+            self._send(True, dst, 10)
+        else:
+            self.log(f'Didn\'t write {vid} because the clock is too late')
+            self._send(False, dst, 10)
 
     def dwrite(self, metadata, direct_addressing=False):
         data = metadata['data']
