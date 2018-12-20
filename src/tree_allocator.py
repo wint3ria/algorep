@@ -13,21 +13,6 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             self.parent = (rank - 1) // nb_children
 
     @register_handler
-    def read_response_handler(self, metadata):
-        data = metadata['data']
-        dst = data['send_back'].pop()
-        if 'variable' not in data:
-            data['variable'] = self.variables[data['vid']]
-        if len(data['send_back']):
-            self._send(data, dst, 1)
-            return
-        self._send(data['variable'], dst, 10)
-
-    @register_handler
-    def read_variable(self, metadata):
-        self.dsearch(metadata, self.read_response_handler, 'read_variable')
-
-    @register_handler
     def dfree_response_handler(self, metadata):
         data = metadata['data']
         dst = data['send_back'].pop()
@@ -44,7 +29,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
     @register_handler
     def dfree(self, metadata):
-        self.dsearch(metadata, self.dfree_response_handler, 'dfree')
+        self.search_tree(metadata, self.dfree_response_handler)
 
     @register_handler
     def dwrite_response_handler(self, metadata):
@@ -66,7 +51,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
     @register_handler
     def dwrite(self, metadata, direct_addressing=False):
-        self.dsearch(metadata, self.dwrite_response_handler, 'dwrite')
+        self.search_tree(metadata, self.dwrite_response_handler)
 
     @register_handler
     def _stop_handler(self, metadata):
@@ -161,27 +146,46 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         metadata['data'] = data
         self.dmalloc_response_handler(metadata)
 
-    def dsearch(self, metadata, handler_to_call, caller_name, direct_addressing=False):
+    @register_handler
+    def read_response_handler(self, metadata):
+        data = metadata['data']
+        dst = data['send_back'].pop()
+        if 'variable' not in data:
+            if type(self.variables[data['vid']]) == Variable:
+                data['variable'] = self.variables[data['vid']]
+            else:
+                index = data['index']
+                tab = self.variables[data['vid']]
+                if index < tab.size:
+                    data['variable'] = tab.value[index]
+                else:
+                    data['index'] -= tab.size
+                    data['vid'] = tab.next
+                    metadata['data'] = self.read_variable(metadata)
+                    return
+        if len(data['send_back']):
+            self._send(data, dst, 1)
+            return
+        self._send(data['variable'], dst, 10)
+
+    @register_handler
+    def read_variable(self, metadata):
+        self.search_tree(metadata, self.read_response_handler)
+
+    def search_tree(self, metadata, response_handler):
         data = metadata['data']
         vid = data['vid']
         owner = vid[1]
 
         send_back = data['send_back']
         if type(send_back) == int:
-            self.log(f'First API call for {caller_name} {vid} from {send_back}')
             data['src'] = send_back
             send_back = [send_back]
         data['send_back'] = send_back
 
-        if direct_addressing:  # Doesn't work, use direct_addressing=False
-            metadata['data'] = data
-            send_back.append(owner)
-            handler_to_call(metadata)
-            return
-
         if vid in self.variables:
             metadata['data'] = data
-            handler_to_call(metadata)
+            response_handler(metadata)
             return
 
         src = data['src']
@@ -191,7 +195,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
         if owner in children or owner == self.parent:
             self.log('Child or parent owns the variable')
-            data['handler'] = handler_to_call.__name__
+            data['handler'] = response_handler.__name__
             self._send(data, owner, 1)
             return
 

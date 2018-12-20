@@ -15,9 +15,14 @@ def register_handler(handler, name=None):
     return handler
 
 
+instantiation_id = 0
+
+
 class Allocator(MPI_process):
     def __init__(self, rank, comm, size, verbose=False):
-        super(Allocator, self).__init__(rank, comm, verbose)
+        global instantiation_id
+        super(Allocator, self).__init__(rank, comm, verbose, f'Allocator{instantiation_id}')
+        instantiation_id += 1
         self.variables = {}
         self.local_size = size
         self.stop = False

@@ -1,10 +1,10 @@
 class MPI_process:  # TODO: Singleton
-    def __init__(self, rank, comm, verbose, clock=0):
+    def __init__(self, rank, comm, verbose, appname, clock=0):
         self.rank = rank
         self.verbose = verbose
         self.comm = comm
         self.clock = clock
-        self.logfile = open(f'process{self.rank}.log', 'w')
+        self.logfile = open(f'process{self.rank}_{appname}.log', 'w')
 
     # TODO: better src/dst handling using MPI status objects
 
@@ -26,4 +26,4 @@ class MPI_process:  # TODO: Singleton
         msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
         self.verbose and print(msg, flush=True)
         self.logfile.write(msg + '\n')
-        self.verbose and self.logfile.flush()
+        self.logfile.flush()
