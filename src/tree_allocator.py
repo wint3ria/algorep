@@ -4,18 +4,13 @@ from storage import Variable, Array
 
 class TreeAllocator(Allocator):  # TODO: docstrings
     def __init__(self, rank, nb_children, comm, size, tree_size, verbose=False):
-        super(TreeAllocator, self).__init__(rank, comm, size, tree_size, verbose)
+        super(TreeAllocator, self).__init__(rank, comm, size, verbose)
         self.nb_children = nb_children
         # use a tree topology
-        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < self.tree_size]
+        self.children = [x for x in range(rank * nb_children + 1, (rank + 1) * nb_children + 1) if x < tree_size]
         self.parent = None
         if rank:
             self.parent = (rank - 1) // nb_children
-        self.memory_map = None  # TODO: exclusion lists
-        if self.children:
-            self.memory_map = dict([(x, 0) for x in self.children])
-        self.size = size
-        self._init_memory()
 
     @register_handler
     def read_response_handler(self, metadata):
@@ -73,16 +68,6 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def dwrite(self, metadata, direct_addressing=False):
         self.dsearch(metadata, self.dwrite_response_handler, 'dwrite')
 
-    def _init_memory(self):
-        self.log('call init memory')
-        for child in self.children:
-            child_size = self._receive(child, 0)['data']
-            self.memory_map[child] = child_size
-            self.size += child_size
-        if self.parent is not None:
-            self._send(self.size, self.parent, 0)
-        self.log('end of init_memory. subtree size: {}; memory map: {}'.format(self.size, self.memory_map))
-
     @register_handler
     def _stop_handler(self, metadata):
         self.stop = True
@@ -92,6 +77,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
     @register_handler
     def _request_stop_handler(self, metadata):
+        data = metadata['data']
         if self.rank:
             new_data = {'handler': '_request_stop_handler'}
             if 'message' in data:
@@ -105,7 +91,10 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         data = metadata['data']
         dst = data['send_back'].pop()
         if data['vid'] is None and metadata['src'] in self.children:
-            self.memory_map[metadata['src']] = 0
+            if 'excluded' in data:
+                data['excluded'] = data['excluded'] + [metadata['src']]
+            else:
+                data['excluded'] = [metadata['src']]
         if len(data['send_back']):
             self._send(data, dst, 1)
             return
@@ -117,12 +106,18 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         if 'send_back' not in data:
             data['send_back'] = [metadata['src']]
         if metadata['src'] in self.children:
-            self.memory_map[metadata['src']] = 0
+            if 'excluded' in data:
+                data['excluded'] = data['excluded'] + [metadata['src']]
+            else:
+                data['excluded'] = [metadata['src']]
         next = None
+        excluded = []
+        if 'excluded' in data:
+            excluded = data['excluded']
 
         if 'prev' in data:
             next = data['prev']
-        if 'size' not in data:
+        if 'size' not in data or data['size'] == 1:
             ctor = Variable
             size = 1
         else:
@@ -149,12 +144,11 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         if var is not None:
             data['prev'] = var.id
 
-        if self.memory_map is not None:
-            children = [x for x in self.children if self.memory_map[x] > 0]  # TODO: exclusion list
+        if len(self.children) != 0:
+            children = [x for x in self.children if x not in excluded]
             if len(children) != 0:
                 child = min(children)
                 data['send_back'].append(self.rank)
-                self.memory_map[child] -= 1  # TODO: exclusion list
                 self._send(data, child, 1)
                 return
 
@@ -203,7 +197,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
         is_ancestor, path = _is_ancestor(self.rank, owner, self.nb_children)
         if is_ancestor:
-            self._send(data, path[-2], 1)
+            self._send(data, path[-2], 1)  # TODO: Fix out of range
             return
         self._send(data, self.parent, 1)
 

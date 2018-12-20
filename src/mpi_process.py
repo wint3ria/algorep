@@ -1,4 +1,4 @@
-class MPI_process:
+class MPI_process:  # TODO: Singleton
     def __init__(self, rank, comm, verbose, clock=0):
         self.rank = rank
         self.verbose = verbose
@@ -26,4 +26,4 @@ class MPI_process:
         msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
         self.verbose and print(msg, flush=True)
         self.logfile.write(msg + '\n')
-        self.logfile.flush()
+        self.verbose and self.logfile.flush()

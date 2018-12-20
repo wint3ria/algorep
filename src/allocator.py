@@ -16,13 +16,11 @@ def register_handler(handler, name=None):
 
 
 class Allocator(MPI_process):
-    def __init__(self, rank, comm, size, tree_size, verbose=False, allow_notifications=False):
+    def __init__(self, rank, comm, size, verbose=False):
         super(Allocator, self).__init__(rank, comm, verbose)
         self.variables = {}
         self.local_size = size
-        self.tree_size = tree_size
         self.stop = False
-        self.allow_notifications = allow_notifications
 
     def run(self):
         while not self.stop:

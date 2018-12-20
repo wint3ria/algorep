@@ -81,6 +81,7 @@ class MultipleReadTest(Application):
                     raise RuntimeError(msg)
                 self.log(var)
 
+
 class SimpleFreeTest(Application):
     def run(self):
         free_tries = 2
@@ -95,6 +96,7 @@ class SimpleFreeTest(Application):
             self.log(f'Freed: {freed}')
             if freed:
                 free_tries -= 1
+
 
 class SimpleWriteTest(Application):
     def run(self):
@@ -141,9 +143,9 @@ test_applications = [
     #SimpleWriteTest,
     # SimpleFreeTest,
     # MultipleReadTest,
-    #SimpleAllocTest1,
+    SimpleAllocTest,
     #MultipleReadTest1,
-    SimpleArrayTest1,
+    #SimpleArrayTest1,
 ]
 
 
