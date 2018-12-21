@@ -1,9 +1,9 @@
 # TODO: ALGOREP
 
 - [ ] README
-- [ ] tree structure
+- [x] tree structure
   - [x] init and stop functions
-  - [ ] allocation function
-  - [ ] read function
-  - [ ] write function
-  - [ ] free function
+  - [x] allocation function
+  - [x] read function
+  - [x] write function
+  - [x] free function
