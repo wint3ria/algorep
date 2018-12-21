@@ -25,7 +25,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         self.local_size += 1
         self._send(True, dst, 10)
 
-    # TODO: handle arrays read/write/free
+    # TODO: handle arrays free
 
     @register_handler
     def dfree(self, metadata):
@@ -42,7 +42,10 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             return
         # metadata['clock'] is the source client's clock
         if self.variables[data['vid']].last_write_clock < metadata['clock']:
-            self.variables[data['vid']].value = data['value']
+            if 'index' not in data:
+                self.variables[data['vid']].value = data['value']
+            else:
+                self.variables[data['vid']].value[data['index']] = data['value']
             self.variables[data['vid']].last_write_clock = metadata['clock']
             self._send(True, dst, 10)
         else:
