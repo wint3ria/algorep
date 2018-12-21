@@ -8,9 +8,11 @@ test_applications = []
 def register_app(app):
     global test_applications
     test_applications.append(app)
+    return app
 
 
-class SimpleAllocTest(Application):
+@register_app
+class SimpleAlloc(Application):
     def run(self):
         for _ in range(5):
             self.log(f'Request allocation')
@@ -20,10 +22,10 @@ class SimpleAllocTest(Application):
                 break
             self.log(f'Request read on variable {var_id}')
             self.log(f'Got this value: {self.read(var_id).value}')
-register_app(SimpleAllocTest)
 
 
-class MultipleReadTest(Application):
+@register_app
+class MultipleRead(Application):
     def run(self):
         self.log('Request Allocation')
         vid = self.allocate()
@@ -38,10 +40,10 @@ class MultipleReadTest(Application):
                     msg += f'\nAllocator rank: {self.allocator_rank}'
                     raise RuntimeError(msg)
                 self.log(var)
-register_app(MultipleReadTest)
 
 
-class SimpleFreeTest(Application):
+@register_app
+class SimpleFree(Application):
     def run(self):
         free_tries = 2
         while free_tries:
@@ -51,14 +53,14 @@ class SimpleFreeTest(Application):
             if var_id is None:
                 break
             self.log(f'Request free on variable {var_id}')
-            freed = self.free(var_id)['data']
+            freed = self.free(var_id)
             self.log(f'Freed: {freed}')
             if freed:
                 free_tries -= 1
-register_app(SimpleFreeTest)
 
 
-class SimpleWriteTest(Application):
+@register_app
+class SimpleWrite(Application):
     def run(self):
         while True:
             self.log(f'Request allocation')
@@ -70,23 +72,61 @@ class SimpleWriteTest(Application):
             self.log(f'Got this value: {self.read(var_id)}')
             value = 67
             self.log(f'Request write on variable {var_id} with value {value}')
-            wrote = self.write(var_id, value)['data']
+            wrote = self.write(var_id, value)
             self.log(f'Wrote: {wrote}')
             self.log(f'Request read on variable {var_id}')
             self.log(f'Got this value: {self.read(var_id)}')
             if wrote:
                 break
-register_app(SimpleWriteTest)
 
-class SimpleArrayTest1(Application):
-    def allocate(self):
-        self._send({'handler': 'dmalloc', 'size': 4}, self.allocator_rank, 1)
-        return self._receive(self.allocator_rank, 10)['data']
 
+@register_app
+class SimpleArray(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
             self.log('Array allocation test')
-            vid = self.allocate()
+            vid = self.allocate(size=4)
             self.log(f'Received {vid}')
             var = self.read(vid, index=3)
             self.log(f'allocated var: {var}')
+
+
+@register_app
+class SimpleArrayWrite(Application):
+    def run(self):
+        self.log('Array write test')
+        vid = self.allocate(size=4)
+        self.log(f'Received {vid}')
+        for i in range(4):
+            self.log(f'Writing value {4 - i} at index {i}')
+            self.write(vid, 4 - i, i)
+        for i in range(4):
+            var = self.read(vid, index=i)
+            self.log(f'Read value {var} at index {i}')
+
+
+@register_app
+class BigArrayAlloc(Application):
+    def run(self):
+        if self.app_com.Get_rank() == 0:
+            self.log('Big array allocation test')
+            vid = self.allocate(size=77)
+            if vid is None:
+                self.log('Could not allocate the "big" array')
+            else:
+                self.log('Successfully allocated a "big" array')
+            return vid
+
+
+@register_app
+class BigArrayWrite(BigArrayAlloc):
+    def run(self):
+        if self.app_com.Get_rank() == 0:
+            vid = super().run()
+            if vid is not None:
+                for i in range(77):
+                    self.log(f'Writing value {- i} at index {i}')
+                    self.write(vid, - i, i)
+                for i in range(4):
+                    var = self.read(vid, index=i)
+                    self.log(f'Read value {var} at index {i}')
