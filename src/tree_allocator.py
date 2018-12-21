@@ -50,7 +50,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             self._send(False, dst, 10)
 
     @register_handler
-    def dwrite(self, metadata, direct_addressing=False):
+    def dwrite(self, metadata):
         self.search_tree(metadata, self.dwrite_response_handler)
 
     @register_handler

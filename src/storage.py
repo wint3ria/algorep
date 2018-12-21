@@ -34,3 +34,7 @@ class Array(Variable):
         self.size = size
         self.value = [None] * self.size
         self.next = next
+
+    def __repr__(self):
+        r = super().__repr__()
+        return f'{r}, size={self.size}, next={self.next}'

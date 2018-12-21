@@ -38,5 +38,9 @@ class Allocator(MPI_process):
                 handlers[translation_table[handler_name]](self, request)
 
             except Exception as e:
-                self.log(f'exception: {traceback.format_exc()}')
+                self.log(f'exception: {traceback.format_exc()}\nOn allocator: {self}')
                 self.stop = True
+
+    def __repr__(self):
+        r = f'{self.__class__.__module__}.{self.__class__.__name__} at {hex(id(self))}'
+        return f'{r} variables={self.variables}, local size={self.local_size}, stop={self.stop}'

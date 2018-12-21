@@ -19,8 +19,8 @@ class Application(MPI_process):
         self._send(data, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
 
-    def allocate(self):
-        self._send({'handler': 'dmalloc'}, self.allocator_rank, 1)
+    def allocate(self, size=1):
+        self._send({'handler': 'dmalloc', 'size': size}, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
 
     def free(self, vid):
@@ -29,7 +29,7 @@ class Application(MPI_process):
                 'send_back': self.rank,
                 'vid': vid,
             }, self.allocator_rank, 1)
-        return self._receive(self.allocator_rank, 10)
+        return self._receive(self.allocator_rank, 10)['data']
 
     def write(self, vid, value, index=None):
         data = {
@@ -41,4 +41,4 @@ class Application(MPI_process):
         if index is not None:
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
-        return self._receive(self.allocator_rank, 10)
+        return self._receive(self.allocator_rank, 10)['data']
