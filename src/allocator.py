@@ -1,3 +1,5 @@
+from functools import wraps
+
 from mpi4py import MPI
 from mpi_process import MPI_process
 import traceback
@@ -7,12 +9,24 @@ handlers = []
 translation_table = {}
 
 
-def register_handler(handler, name=None):
-    name = name or handler.__name__
+def register_handler(handler):
+    name = handler.__name__
     translation_table[name] = len(handlers)
     handler.id = len(handlers)
     handlers.append(handler)
     return handler
+
+
+def public_handler(handler):
+
+    @wraps(handler)
+    def wrapper(*args, **kwargs):
+        if 'master' not in args[1]['data']:
+            args[1]['data']['master'] = args[1]['dst']
+            args[1]['data']['caller'] = args[1]['src']
+        return handler(*args, **kwargs)
+
+    return wrapper
 
 
 instantiation_id = 0
