@@ -149,9 +149,10 @@ class BigArrayWrite(BigArrayAlloc):
 @register_app
 class QuickSortTest(Application):
     def run(self):
-        arr = [54,26,93,17,77,31,44,55,20]
+        import random
+        sz = 50
+        arr = random.sample(range(sz * 3), sz) # generate random arr of size=sz
         if self.app_com.Get_rank() == 0:
-            sz = 4
             vid = self.allocate(size=sz)
             if vid is not None:
                 # init
@@ -167,3 +168,5 @@ class QuickSortTest(Application):
                     after_sort.append(self.read(vid, index=i))
                 self.log(f'Before_sort = {before_sort}', True)
                 self.log(f'After_sort = {after_sort}', True)
+            else:
+                self.log('Array too big for us.', True)

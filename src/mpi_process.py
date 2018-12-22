@@ -26,6 +26,6 @@ class MPI_process:  # TODO: Singleton
         msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
         if highlight:
             msg = f'\033[93m{msg}\033[0m'
-        self.verbose and print(msg, flush=True)
+        (self.verbose or highlight) and print(msg, flush=True)
         self.logfile.write(msg + '\n')
         self.logfile.flush()

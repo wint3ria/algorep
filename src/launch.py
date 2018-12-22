@@ -12,7 +12,7 @@ VERBOSE = True
 random.seed(rank)
 
 nb_children = 3
-node_size = 2
+node_size = 25
 
 
 def main():

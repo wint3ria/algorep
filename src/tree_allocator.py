@@ -202,7 +202,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def search_tree(self, metadata, response_handler):
         data = metadata['data']
         vid = data['vid']
-        self.log(f'search_tree: data={data}', True)
+        # self.log(f'search_tree: data={data}', True)
         owner = vid[1]
 
         if vid in self.variables:
