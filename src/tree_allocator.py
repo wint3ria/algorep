@@ -182,7 +182,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
                 else:
                     data['index'] -= tab.size
                     data['vid'] = tab.next
-                    metadata['data'] = self.read_variable(metadata)
+                    self.read_variable(metadata)
                     return
         self.log(f'send_back={data["send_back"]}, dst={dst}', True)
         if len(data['send_back']):
