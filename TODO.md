@@ -7,3 +7,10 @@
   - [x] read function
   - [x] write function
   - [x] free function
+- [ ] Array free
+- [ ] Clock management on write
+- [ ] Quicksort
+- [ ] Better testing application, separated from Quicksort
+- [ ] Docstrings
+- [ ] Better MPI tag management
+- [ ] Async receive
