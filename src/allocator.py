@@ -54,6 +54,7 @@ class Allocator(MPI_process):
             except Exception as e:
                 self.log(f'exception: {traceback.format_exc()}\nOn allocator: {self}')
                 self.stop = True
+                self.comm.Abort(1)
 
     def __repr__(self):
         r = f'{self.__class__.__module__}.{self.__class__.__name__} at {hex(id(self))}'
