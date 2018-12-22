@@ -72,7 +72,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     '''
     TODO: Add clock management for the writes on the variables
     This is the previously used code, before removing send_back
-    
+
     if data['variable'].last_write_clock < metadata['clock']:
         if type(data['variable']) == Array:
             data['variable'].value[data['index']] = data['value']
@@ -202,7 +202,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def search_tree(self, metadata, response_handler):
         data = metadata['data']
         vid = data['vid']
-        self.log(f'{data}', True)
+        self.log(f'search_tree: data={data}', True)
         owner = vid[1]
 
         if vid in self.variables:

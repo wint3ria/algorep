@@ -11,7 +11,7 @@ def register_app(app):
     return app
 
 
-@register_app
+# @register_app
 class SimpleAlloc(Application):
     def run(self):
         for _ in range(5):
@@ -24,7 +24,7 @@ class SimpleAlloc(Application):
             self.log(f'Got this value: {self.read(var_id).value}')
 
 
-@register_app
+# @register_app
 class MultipleRead(Application):
     def run(self):
         self.log('Request Allocation')
@@ -42,7 +42,7 @@ class MultipleRead(Application):
                 self.log(var)
 
 
-@register_app
+# @register_app
 class SimpleFree(Application):
     def run(self):
         free_tries = 2
@@ -59,7 +59,7 @@ class SimpleFree(Application):
                 free_tries -= 1
 
 
-@register_app
+# @register_app
 class SimpleWrite(Application):
     def run(self):
         while True:
@@ -80,7 +80,7 @@ class SimpleWrite(Application):
                 break
 
 
-@register_app
+# @register_app
 class SimpleArray(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
@@ -94,7 +94,7 @@ class SimpleArray(Application):
             self.log(f'allocated var: {var}')
 
 
-@register_app
+# @register_app
 class SimpleArrayWrite(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
@@ -112,7 +112,7 @@ class SimpleArrayWrite(Application):
                 self.log(f'Read value {var} at index {i}')
 
 
-@register_app
+# @register_app
 class BigArrayAlloc(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
@@ -124,24 +124,17 @@ class BigArrayAlloc(Application):
             else:
                 self.log('Successfully allocated a "big" array')
             for i in range(4):
-                self.log(f'READING......... {i}', True)
-                self.log(f'from={self.rank}', True)
-                self.log(self.read(vid, index=i), True)
+                var = self.read(vid, index=i)
+                self.log(f'Read value {var} at index {i}', True)
             return vid
 
 
-@register_app
+# @register_app
 class BigArrayWrite(BigArrayAlloc):
     def run(self):
         if self.app_com.Get_rank() == 0:
             vid = super().run()
             if vid is not None:
-                i = 1
-                self.log(f'Writing value {-i} at index {i}')
-                self.write(vid, -i, i)
-
-                var = self.read(vid, index=i)
-                self.log(f'\n\nRead value {var} at index {i}\n\n')
                 for i in range(6):
                     self.log(f'Writing value {- i} at index {i}')
                     self.write(vid, -i, i)
@@ -149,5 +142,28 @@ class BigArrayWrite(BigArrayAlloc):
                 for i in range(6):
                     var = self.read(vid, index=i)
                     tab.append(var)
-                    self.log(f'\n\nRead value {var} at index {i}\n\n')
-                self.log(f'\n\n\n end: {tab}\n')
+                    self.log(f'Read value {var} at index {i}')
+                self.log(f'tab values: {tab}', True)
+
+
+@register_app
+class QuickSortTest(Application):
+    def run(self):
+        arr = [54,26,93,17,77,31,44,55,20]
+        if self.app_com.Get_rank() == 0:
+            sz = 4
+            vid = self.allocate(size=sz)
+            if vid is not None:
+                # init
+                arr_len = min(sz, len(arr))
+                for i in range(arr_len):
+                    self.write(vid, arr[i], i)
+                before_sort = []
+                for i in range(arr_len):
+                    before_sort.append(self.read(vid, index=i))
+                self.quicksort(vid, sz)
+                after_sort = []
+                for i in range(arr_len):
+                    after_sort.append(self.read(vid, index=i))
+                self.log(f'Before_sort = {before_sort}', True)
+                self.log(f'After_sort = {after_sort}', True)

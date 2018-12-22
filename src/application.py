@@ -17,7 +17,6 @@ class Application(MPI_process):
         if index is not None:
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
-        self.log(f'alloc_rank={self.allocator_rank}', True)
         return self._receive(self.allocator_rank, 10)['data']
 
     def allocate(self, size=1):
@@ -43,3 +42,23 @@ class Application(MPI_process):
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
+
+
+    def quicksort(self, vid, size):
+        return self.sort_partition(vid, 0, size-1)
+
+    def sort_partition(self, vid, start, end):
+        pivot = self.read(vid, index=end)
+        border = start
+        if start < end:
+            border_value = self.read(vid, index=border)
+            for i in range(start, end+1):
+                xi = self.read(vid, index=i)
+                if xi <= pivot:
+                    self.write(vid, border_value, i)
+                    self.write(vid, xi, border)
+                    if i != end:
+                        border += 1
+                        border_value = self.read(vid, index=border)
+            self.sort_partition(vid, start, border-1)
+            self.sort_partition(vid, border+1, end)
