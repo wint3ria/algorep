@@ -11,7 +11,7 @@ def register_app(app):
     return app
 
 
-# @register_app
+@register_app
 class SimpleAlloc(Application):
     def run(self):
         for _ in range(5):
@@ -24,7 +24,7 @@ class SimpleAlloc(Application):
             self.log(f'Got this value: {self.read(var_id).value}')
 
 
-# @register_app
+@register_app
 class MultipleRead(Application):
     def run(self):
         self.log('Request Allocation')
@@ -42,7 +42,7 @@ class MultipleRead(Application):
                 self.log(var)
 
 
-# @register_app
+@register_app
 class SimpleFree(Application):
     def run(self):
         free_tries = 2
@@ -59,7 +59,7 @@ class SimpleFree(Application):
                 free_tries -= 1
 
 
-# @register_app
+@register_app
 class SimpleWrite(Application):
     def run(self):
         while True:
@@ -80,29 +80,36 @@ class SimpleWrite(Application):
                 break
 
 
-# @register_app
+@register_app
 class SimpleArray(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
             self.log('Array allocation test')
             vid = self.allocate(size=4)
             self.log(f'Received {vid}')
+            if vid is None:
+                self.log('Not enough memory!')
+                return
             var = self.read(vid, index=3)
             self.log(f'allocated var: {var}')
 
 
-# @register_app
+@register_app
 class SimpleArrayWrite(Application):
     def run(self):
-        self.log('Array write test')
-        vid = self.allocate(size=4)
-        self.log(f'Received {vid}')
-        for i in range(4):
-            self.log(f'Writing value {4 - i} at index {i}')
-            self.write(vid, 4 - i, i)
-        for i in range(4):
-            var = self.read(vid, index=i)
-            self.log(f'Read value {var} at index {i}')
+        if self.app_com.Get_rank() == 0:
+            self.log('Array write test')
+            vid = self.allocate(size=4)
+            self.log(f'Received {vid}')
+            if vid is None:
+                self.log('Not enough memory!')
+                return
+            for i in range(4):
+                self.log(f'Writing value {4 - i} at index {i}')
+                self.write(vid, 4 - i, i)
+            for i in range(4):
+                var = self.read(vid, index=i)
+                self.log(f'Read value {var} at index {i}')
 
 
 @register_app
@@ -110,9 +117,10 @@ class BigArrayAlloc(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
             self.log('Big array allocation test')
-            vid = self.allocate(size=4)
+            vid = self.allocate(size=6)
             if vid is None:
                 self.log('Could not allocate the "big" array')
+                return
             else:
                 self.log('Successfully allocated a "big" array')
             for i in range(4):
@@ -122,7 +130,7 @@ class BigArrayAlloc(Application):
             return vid
 
 
-# @register_app
+@register_app
 class BigArrayWrite(BigArrayAlloc):
     def run(self):
         if self.app_com.Get_rank() == 0:
@@ -134,12 +142,12 @@ class BigArrayWrite(BigArrayAlloc):
 
                 var = self.read(vid, index=i)
                 self.log(f'\n\nRead value {var} at index {i}\n\n')
-                # for i in range(10):
-                #     self.log(f'Writing value {- i} at index {i}')
-                #     self.write(vid, -i, i)
-                # tab = []
-                # for i in range(4):
-                #     var = self.read(vid, index=i)
-                #     tab.append(var)
-                #     self.log(f'\n\nRead value {var} at index {i}\n\n')
-                # self.log(f'\n\n\n end: {tab}\n')
+                for i in range(6):
+                    self.log(f'Writing value {- i} at index {i}')
+                    self.write(vid, -i, i)
+                tab = []
+                for i in range(6):
+                    var = self.read(vid, index=i)
+                    tab.append(var)
+                    self.log(f'\n\nRead value {var} at index {i}\n\n')
+                self.log(f'\n\n\n end: {tab}\n')
