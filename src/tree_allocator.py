@@ -34,19 +34,35 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     @register_handler
     def dwrite_response_handler(self, metadata):
         data = metadata['data']
+        vid = data['vid']
         dst = data['send_back'].pop()
         if 'variable' not in data:
-            data['variable'] = self.variables[data['vid']]
+            if type(self.variables[data['vid']]) == Variable:
+                data['variable'] = self.variables[data['vid']]
+            else:
+                index = data['index']
+                tab = self.variables[data['vid']]
+                if index < tab.size:
+                    data['variable'] = tab
+                else:
+                    data['index'] -= tab.size
+                    data['vid'] = tab.next
+                    self.log(f'searched_vid={vid}, index={index}, variables={self.variables}', True)
+                    self.log(f'tab={tab}', True)
+                    self.dwrite(metadata)
+                    return
         if len(data['send_back']):
             self._send(data, dst, 1)
             return
         # metadata['clock'] is the source client's clock
-        if self.variables[data['vid']].last_write_clock < metadata['clock']:
-            if 'index' not in data:
-                self.variables[data['vid']].value = data['value']
+        if data['variable'].last_write_clock < metadata['clock']:
+            if type(data['variable']) == Array:
+                self.log('yoooooo', True)
+                data['variable'].value[data['index']] = data['value']
+                self.log(f'{data}', True)
             else:
-                self.variables[data['vid']].value[data['index']] = data['value']
-            self.variables[data['vid']].last_write_clock = metadata['clock']
+                data['variable'].value = data['value']
+            data['variable'].last_write_clock = metadata['clock']
             self._send(True, dst, 10)
         else:
             self.log(f'Didn\'t write {vid} because the clock is too late')
@@ -110,7 +126,8 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             size = 1
         else:
             size = data['size']
-            ctor = lambda req, rank: Array(req, rank, min(size, self.local_size), next)
+            arr_size = min(size, self.local_size)
+            ctor = lambda req, rank: Array(req, rank, arr_size, next)
 
         local_alloc_size = min(size, self.local_size)
         child_alloc_size = size - local_alloc_size
@@ -159,6 +176,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             else:
                 index = data['index']
                 tab = self.variables[data['vid']]
+                self.log(f'searched_vid={data["vid"]}, index={index}, variables={self.variables}', True)
                 if index < tab.size:
                     data['variable'] = tab.value[index]
                 else:
@@ -166,9 +184,11 @@ class TreeAllocator(Allocator):  # TODO: docstrings
                     data['vid'] = tab.next
                     metadata['data'] = self.read_variable(metadata)
                     return
+        self.log(f'send_back={data["send_back"]}, dst={dst}', True)
         if len(data['send_back']):
             self._send(data, dst, 1)
             return
+        self.log(f'var={data["variable"]}, dst={dst}', True)
         self._send(data['variable'], dst, 10)
 
     @register_handler
@@ -178,6 +198,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def search_tree(self, metadata, response_handler):
         data = metadata['data']
         vid = data['vid']
+        self.log(f'{data}', True)
         owner = vid[1]
 
         send_back = data['send_back']

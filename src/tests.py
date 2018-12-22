@@ -11,7 +11,7 @@ def register_app(app):
     return app
 
 
-@register_app
+# @register_app
 class SimpleAlloc(Application):
     def run(self):
         for _ in range(5):
@@ -24,7 +24,7 @@ class SimpleAlloc(Application):
             self.log(f'Got this value: {self.read(var_id).value}')
 
 
-@register_app
+# @register_app
 class MultipleRead(Application):
     def run(self):
         self.log('Request Allocation')
@@ -42,7 +42,7 @@ class MultipleRead(Application):
                 self.log(var)
 
 
-@register_app
+# @register_app
 class SimpleFree(Application):
     def run(self):
         free_tries = 2
@@ -59,7 +59,7 @@ class SimpleFree(Application):
                 free_tries -= 1
 
 
-@register_app
+# @register_app
 class SimpleWrite(Application):
     def run(self):
         while True:
@@ -80,7 +80,7 @@ class SimpleWrite(Application):
                 break
 
 
-@register_app
+# @register_app
 class SimpleArray(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
@@ -91,7 +91,7 @@ class SimpleArray(Application):
             self.log(f'allocated var: {var}')
 
 
-@register_app
+# @register_app
 class SimpleArrayWrite(Application):
     def run(self):
         self.log('Array write test')
@@ -110,23 +110,36 @@ class BigArrayAlloc(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
             self.log('Big array allocation test')
-            vid = self.allocate(size=77)
+            vid = self.allocate(size=4)
             if vid is None:
                 self.log('Could not allocate the "big" array')
             else:
                 self.log('Successfully allocated a "big" array')
+            for i in range(4):
+                self.log(f'READING......... {i}', True)
+                self.log(f'from={self.rank}', True)
+                self.log(self.read(vid, index=i), True)
             return vid
 
 
-@register_app
+# @register_app
 class BigArrayWrite(BigArrayAlloc):
     def run(self):
         if self.app_com.Get_rank() == 0:
             vid = super().run()
             if vid is not None:
-                for i in range(77):
-                    self.log(f'Writing value {- i} at index {i}')
-                    self.write(vid, - i, i)
-                for i in range(4):
-                    var = self.read(vid, index=i)
-                    self.log(f'Read value {var} at index {i}')
+                i = 1
+                self.log(f'Writing value {-i} at index {i}')
+                self.write(vid, -i, i)
+
+                var = self.read(vid, index=i)
+                self.log(f'\n\nRead value {var} at index {i}\n\n')
+                # for i in range(10):
+                #     self.log(f'Writing value {- i} at index {i}')
+                #     self.write(vid, -i, i)
+                # tab = []
+                # for i in range(4):
+                #     var = self.read(vid, index=i)
+                #     tab.append(var)
+                #     self.log(f'\n\nRead value {var} at index {i}\n\n')
+                # self.log(f'\n\n\n end: {tab}\n')

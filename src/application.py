@@ -17,6 +17,7 @@ class Application(MPI_process):
         if index is not None:
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
+        self.log(f'alloc_rank={self.allocator_rank}', True)
         return self._receive(self.allocator_rank, 10)['data']
 
     def allocate(self, size=1):
