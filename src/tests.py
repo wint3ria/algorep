@@ -123,10 +123,19 @@ class BigArrayAlloc(Application):
                 return
             else:
                 self.log('Successfully allocated a "big" array')
+            return vid
+
+
+@register_app
+class BigArrayRead(BigArrayAlloc):
+    def run(self):
+        if self.app_com.Get_rank() == 0:
+            vid = super().run()
+            if vid is None:
+                return
             for i in range(4):
-                self.log(f'READING......... {i}')
-                self.log(f'from={self.rank}')
-                self.log(self.read(vid, index=i))
+                var = self.read(vid, index=i)
+                self.log(f'Read value {var} at index {i}', True)
             return vid
 
 
@@ -136,20 +145,14 @@ class BigArrayWrite(BigArrayAlloc):
         if self.app_com.Get_rank() == 0:
             vid = super().run()
             if vid is not None:
-                i = 1
-                self.log(f'Writing value {-i} at index {i}')
-                self.write(vid, -i, i)
-
-                var = self.read(vid, index=i)
-                self.log(f'Read value {var} at index {i}')
                 for i in range(6):
-                    self.log(f'Writing value {- i} at index {i}')
+                    self.log(f'Writing value {- i} at index {i}', True)
                     self.write(vid, -i, i)
                 tab = []
                 for i in range(6):
                     var = self.read(vid, index=i)
                     tab.append(var)
-                    self.log(f'Read value {var} at index {i}')
+                    self.log(f'Read value {var} at index {i}', True)
                 self.log(f'end: {tab}')
 
 

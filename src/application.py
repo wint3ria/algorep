@@ -39,11 +39,3 @@ class Application(MPI_process):
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
-
-    def log(self, msg):
-        if self.verbose:
-            msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
-            msg = f'\033[93m{msg}\033[0m'
-            print(msg, flush=True)
-            self.logfile.write(msg + '\n')
-            self.logfile.flush()

@@ -5,6 +5,7 @@ import argparse
 
 from tree_allocator import TreeAllocator
 from tests import test_applications
+from quicksort import QuickSort
 
 
 parser = argparse.ArgumentParser(description='Launch a distributed allocator and some unit tests'
@@ -24,13 +25,13 @@ nb_children = args.nb_children
 node_size = args.node_size
 
 
-def tests():
+def run_apps(apps):
     if size < 2:
         raise RuntimeError('No process is assigned to the application')
 
     partition_comm = comm.Split(rank < size // 2, rank)
 
-    for application_ctor in test_applications:
+    for application_ctor in apps:
         try:
             if rank < size // 2:
                 process = TreeAllocator(rank, nb_children, comm, node_size, size // 2, verbose=VERBOSE)
@@ -56,14 +57,9 @@ def tests():
             print(f'Test application: {application_ctor.__name__}; Status: {status}', flush=True)
 
 
-def main():
-    # TODO: Implement quicksort
-    pass
-
-
 if __name__ == "__main__":
     if args.quicksort:
-        main()
+        run_apps([QuickSort])
     else:
-        tests()
+        run_apps(test_applications)
     MPI.Finalize()

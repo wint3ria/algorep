@@ -80,7 +80,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     '''
     TODO: Add clock management for the writes on the variables
     This is the previously used code, before removing send_back
-    
+
     if data['variable'].last_write_clock < metadata['clock']:
         if type(data['variable']) == Array:
             data['variable'].value[data['index']] = data['value']
