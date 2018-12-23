@@ -28,6 +28,7 @@ class QuickSort(Application):
 
     def run(self):
         size=50
+        random.seed()
         arr = random.sample(range(size * 3), size) # random array of len = size
         if self.app_com.Get_rank() == 0:
             vid = self.allocate(size=size)
@@ -46,4 +47,5 @@ class QuickSort(Application):
                 print(f'--- size={size}\nBefore_sort = {before_sort}')
                 print(f'\nAfter_sort = {after_sort}\n---')
             else:
-                print('Array too big for us.', True)
+                print('Array too big for us.')
+                print('Create more process with `mpiexec -n 8 python launch --quicksort`')

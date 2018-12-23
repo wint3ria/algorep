@@ -10,7 +10,7 @@ from quicksort import QuickSort
 
 parser = argparse.ArgumentParser(description='Launch a distributed allocator and some unit tests'
                                              'or a distributed quicksort implemention')
-parser.add_argument('--node_size', help="Number of variable an allocator can possess", default=2, type=int)
+parser.add_argument('--node_size', help="Number of variable an allocator can possess", default=25, type=int)
 parser.add_argument('--nb_children', help="Number of children for each node", default=3, type=int)
 parser.add_argument('--quicksort', help="Launch a distributed quicksort implementation instead of unit tests",
                     default=False, action="store_true")
