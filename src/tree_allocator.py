@@ -34,8 +34,16 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def dfree_response_handler(self, metadata):
         data = metadata['data']
         if data['vid'] in self.variables:
-            self.variables.pop(data['vid'], None)
-            self.local_size += 1
+            v = self.variables.pop(data['vid'], None)
+            if type(v) == Array:
+                self.local_size += v.size
+                if v.next is not None:
+                    data['vid'] = v.next
+                    metadata['data'] = data
+                    self.dfree(metadata)
+                    return
+            else:
+                self.local_size += 1
             data['response'] = True
             metadata['data'] = data
         self.response_handler(metadata)

@@ -149,5 +149,13 @@ class BigArrayWrite(BigArrayAlloc):
                 for i in range(6):
                     var = self.read(vid, index=i)
                     tab.append(var)
-                    self.log(f'\n\nRead value {var} at index {i}\n\n')
-                self.log(f'\n\n\n end: {tab}\n')
+                    self.log(f'Read value {var} at index {i}')
+                self.log(f'end: {tab}')
+
+
+@register_app
+class ArrayFree(BigArrayAlloc):
+    def run(self):
+        vid = super().run()
+        if vid is not None:
+            self.free(vid)
