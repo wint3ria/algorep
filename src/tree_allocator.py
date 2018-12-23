@@ -144,10 +144,10 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         local_alloc_size = min(size, self.local_size)
         child_alloc_size = size - local_alloc_size
 
-        var = None
         if local_alloc_size != 0:
             self.local_size -= local_alloc_size
             var = ctor(data['caller'], self.rank)
+            data['prev'] = var.id
             self.variables[var.id] = var
             data['vid'] = var.id
             if child_alloc_size == 0:
@@ -157,9 +157,6 @@ class TreeAllocator(Allocator):  # TODO: docstrings
                 return
 
         data['size'] = child_alloc_size
-        data['prev'] = None
-        if var is not None:
-            data['prev'] = var.id
 
         if len(self.children) != 0:
             children = [x for x in self.children if x not in excluded]
