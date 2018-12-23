@@ -11,5 +11,5 @@
 - [x] Clock management on write
 - [x] Quicksort
 - [x] Better testing application, separated from Quicksort
-- [ ] Docstrings
+- [x] Docstrings
 - [ ] Better MPI tag management
