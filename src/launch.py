@@ -15,11 +15,13 @@ parser.add_argument('--nb_children', help="Number of children for each node", de
 parser.add_argument('--quicksort', help="Launch a distributed quicksort implementation instead of unit tests",
                     default=False, action="store_true")
 parser.add_argument('--verbose', action="store_true", help="Enable verbose mode", default=False)
+parser.add_argument('--log', action="store_true", help="Write logfiles", default=False)
 args = parser.parse_args()
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 VERBOSE = args.verbose
+LOG = args.log
 random.seed(rank)
 nb_children = args.nb_children
 node_size = args.node_size
@@ -37,7 +39,7 @@ def run_apps(apps):
                 process = TreeAllocator(rank, nb_children, comm, node_size, size // 2, verbose=VERBOSE)
             else:
                 allocator_rank = random.randint(0, size // 2 - 1)
-                process = application_ctor(rank, allocator_rank, comm, verbose=VERBOSE, app_com=partition_comm)
+                process = application_ctor(rank, allocator_rank, comm, verbose=VERBOSE, app_com=partition_comm, log=LOG)
             comm.barrier()
             process.run()
 

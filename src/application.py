@@ -2,8 +2,8 @@ from mpi_process import MPI_process
 
 
 class Application(MPI_process):
-    def __init__(self, rank, allocator_rank, comm, verbose, app_com=None):
-        super(Application, self).__init__(rank, comm, verbose, self.__class__.__name__)
+    def __init__(self, rank, allocator_rank, comm, verbose, app_com=None, log=False):
+        super(Application, self).__init__(rank, comm, verbose, self.__class__.__name__, savelog=log)
         self.allocator_rank = allocator_rank
         if app_com:
             self.app_com = app_com
