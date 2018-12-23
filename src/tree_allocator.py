@@ -62,13 +62,15 @@ class TreeAllocator(Allocator):  # TODO: docstrings
         vid = data['vid']
         if vid in self.variables:
             if type(self.variables[vid]) == Variable:  # Simple variable assignment
-                # TODO: clock
-                self.variables[vid].value = data['value']
+                if self.variables[vid].last_write_clock < metadata['clock']:
+                    self.variables[vid].value = data['value']
+                    self.variables[vid].last_write_clock = metadata['clock']
             else:  # Array value assignment
                 index = data['index']
                 if index < self.variables[vid].size:  # The current array contains the index
-                    # TODO: clock
-                    self.variables[vid].value[index] = data['value']
+                    if self.variables[vid].last_write_clock < metadata['clock']:
+                        self.variables[vid].value[index] = data['value']
+                        self.variables[vid].last_write_clock = metadata['clock']
                 else:  # Search the next array in the linked list
                     data['index'] -= self.variables[vid].size
                     data['vid'] = self.variables[vid].next
@@ -76,21 +78,6 @@ class TreeAllocator(Allocator):  # TODO: docstrings
                     return
             metadata['data']['response'] = True
         self.response_handler(metadata)
-
-    '''
-    TODO: Add clock management for the writes on the variables
-    This is the previously used code, before removing send_back
-
-    if data['variable'].last_write_clock < metadata['clock']:
-        if type(data['variable']) == Array:
-            data['variable'].value[data['index']] = data['value']
-        else:
-            data['variable'].value = data['value']
-        data['variable'].last_write_clock = metadata['clock']
-        self._send(True, dst, 10)
-    else:
-        self._send(False, dst, 10)
-    '''
 
     @register_handler
     @public_handler
