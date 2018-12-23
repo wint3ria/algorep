@@ -2,7 +2,11 @@ from allocator import Allocator, register_handler, public_handler
 from storage import Variable, Array
 
 
-class TreeAllocator(Allocator):  # TODO: docstrings
+class TreeAllocator(Allocator):
+    '''
+    This class defines our Tree and implements the usefull functions
+    It inherits from the allocator class, and builds a list of children based on the nb_children
+    '''
     def __init__(self, rank, nb_children, comm, size, tree_size, verbose=False):
         super(TreeAllocator, self).__init__(rank, comm, size, verbose)
         self.tree_size = tree_size
@@ -14,6 +18,10 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             self.parent = (rank - 1) // nb_children
 
     def response_handler(self, metadata, return_value_id='response'):
+    '''
+    Sends a MPI message back to the node that called our process,
+    or sends it back to the user once we are done with the task
+    '''
         data = metadata['data']
         master = data['master']
         caller = data['caller']
@@ -32,6 +40,12 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     @register_handler
     @public_handler
     def dfree_response_handler(self, metadata):
+    '''
+    handler for the Dfree function
+    Remove the variable from self.variables if it exists,
+    otherwise look for it elsewhere.
+    More info in the project report.
+    '''
         data = metadata['data']
         if data['vid'] in self.variables:
             v = self.variables.pop(data['vid'], None)
@@ -48,16 +62,24 @@ class TreeAllocator(Allocator):  # TODO: docstrings
             metadata['data'] = data
         self.response_handler(metadata)
 
-    # TODO: handle arrays free
-
     @register_handler
     @public_handler
     def dfree(self, metadata):
+    '''
+    Dfree function. Calls search_tree to find the wanted variable
+    and calls the free handler later on.
+    '''
         self.search_tree(metadata, self.dfree_response_handler)
 
     @register_handler
     @public_handler
     def dwrite_response_handler(self, metadata):
+    '''
+    handler for the Dwrite function
+    Change the value if the variable exists and if the clock
+    from the process asking is greater than the last_write_clock.
+    More info in the project report.
+    '''
         data = metadata['data']
         vid = data['vid']
         if vid in self.variables:
@@ -82,6 +104,10 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     @register_handler
     @public_handler
     def dwrite(self, metadata):
+    '''
+    Dwrite function. Calls search_tree to find the wanted variable
+    and calls the write handler later on.
+    '''
         self.search_tree(metadata, self.dwrite_response_handler)
 
     @register_handler
@@ -115,6 +141,11 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     @register_handler
     @public_handler
     def dmalloc(self, metadata):
+    '''
+    Distributed malloc function.
+    Look for a process with a size that fits the size required.
+    More info in the project report.
+    '''
         data = metadata['data']
         if metadata['src'] in self.children:
             if 'excluded' in data:
@@ -170,6 +201,11 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
     @register_handler
     def read_response_handler(self, metadata):
+    '''
+    handler for the read function
+    Find the value of the desired variable if it exists and send it back.
+    More info in the project report.
+    '''
         data = metadata['data']
         if 'variable' not in data:
             if type(self.variables[data['vid']]) == Variable:
@@ -189,9 +225,18 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     @register_handler
     @public_handler
     def read_variable(self, metadata):
+    '''
+    Dread function. Calls search_tree to find the wanted variable
+    and calls the read handler later on.
+    '''
         self.search_tree(metadata, self.read_response_handler)
 
     def search_tree(self, metadata, response_handler):
+    '''
+    Finds the owner of a vid in our tree.
+    If the owner is the process, calls the appropriate handler,
+    otherwise send message to an other process that should lead to the owner.
+    '''
         data = metadata['data']
         vid = data['vid']
         owner = vid[1]
@@ -224,6 +269,9 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
 
 def _is_ancestor(a, n, k, tree_size, l=list()):
+    '''
+    Finds the path from the local process to an other process.
+    '''
     if n >= tree_size:
         return False, l
     if n == 0:

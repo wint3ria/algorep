@@ -1,4 +1,8 @@
 class MPI_process:  # TODO: Singleton
+    '''
+    Implements the send, receive and log function for all the
+    kinds of MPI_process.
+    '''
     def __init__(self, rank, comm, verbose, appname, clock=0, savelog=False):
         self.rank = rank
         self.verbose = verbose

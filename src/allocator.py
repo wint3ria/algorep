@@ -33,6 +33,11 @@ instantiation_id = 0
 
 
 class Allocator(MPI_process):
+    '''
+    Allocator class. Inherits from MPI_process.
+    Creates the variable dictionnary, and implements the run function
+    which contains the only _receive call.
+    '''
     def __init__(self, rank, comm, size, verbose=False):
         global instantiation_id
         super(Allocator, self).__init__(rank, comm, verbose, f'Allocator{instantiation_id}')
