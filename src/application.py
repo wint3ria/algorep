@@ -11,13 +11,11 @@ class Application(MPI_process):
     def read(self, vid, index=None):
         data = {
             'handler': 'read_variable',
-            'send_back': self.rank,
             'vid': vid,
         }
         if index is not None:
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
-        self.log(f'alloc_rank={self.allocator_rank}', True)
         return self._receive(self.allocator_rank, 10)['data']
 
     def allocate(self, size=1):
@@ -27,7 +25,6 @@ class Application(MPI_process):
     def free(self, vid):
         self._send({
                 'handler': 'dfree',
-                'send_back': self.rank,
                 'vid': vid,
             }, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
@@ -35,7 +32,6 @@ class Application(MPI_process):
     def write(self, vid, value, index=None):
         data = {
                 'handler': 'dwrite',
-                'send_back': self.rank,
                 'vid': vid,
                 'value': value,
         }
@@ -43,3 +39,11 @@ class Application(MPI_process):
             data['index'] = index
         self._send(data, self.allocator_rank, 1)
         return self._receive(self.allocator_rank, 10)['data']
+
+    def log(self, msg):
+        if self.verbose:
+            msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
+            msg = f'\033[93m{msg}\033[0m'
+            print(msg, flush=True)
+            self.logfile.write(msg + '\n')
+            self.logfile.flush()

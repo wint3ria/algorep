@@ -7,7 +7,7 @@
   - [x] read function
   - [x] write function
   - [x] free function
-- [ ] Array free
+- [x] Array free
 - [ ] Clock management on write
 - [ ] Quicksort
 - [ ] Better testing application, separated from Quicksort

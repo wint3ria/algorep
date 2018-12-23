@@ -95,7 +95,7 @@ class SimpleArray(Application):
 
 
 @register_app
-class SimpleArrayWrite(Application):
+class ArrayWrite(Application):
     def run(self):
         if self.app_com.Get_rank() == 0:
             self.log('Array write test')
@@ -124,9 +124,9 @@ class BigArrayAlloc(Application):
             else:
                 self.log('Successfully allocated a "big" array')
             for i in range(4):
-                self.log(f'READING......... {i}', True)
-                self.log(f'from={self.rank}', True)
-                self.log(self.read(vid, index=i), True)
+                self.log(f'READING......... {i}')
+                self.log(f'from={self.rank}')
+                self.log(self.read(vid, index=i))
             return vid
 
 
@@ -141,7 +141,7 @@ class BigArrayWrite(BigArrayAlloc):
                 self.write(vid, -i, i)
 
                 var = self.read(vid, index=i)
-                self.log(f'\n\nRead value {var} at index {i}\n\n')
+                self.log(f'Read value {var} at index {i}')
                 for i in range(6):
                     self.log(f'Writing value {- i} at index {i}')
                     self.write(vid, -i, i)

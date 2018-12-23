@@ -22,11 +22,9 @@ class MPI_process:  # TODO: Singleton
         self.log(f'received: {data} on tag {tag}')
         return data
 
-    def log(self, msg, highlight=False):
+    def log(self, msg):
         if self.verbose:
             msg = 'N{} [clk|{}]: {}'.format(self.rank, self.clock, msg)
-            if highlight:
-                msg = f'\033[93m{msg}\033[0m'
             print(msg, flush=True)
             self.logfile.write(msg + '\n')
             self.logfile.flush()

@@ -207,7 +207,6 @@ class TreeAllocator(Allocator):  # TODO: docstrings
     def search_tree(self, metadata, response_handler):
         data = metadata['data']
         vid = data['vid']
-        self.log(f'{data}', True)
         owner = vid[1]
 
         if vid in self.variables:
@@ -232,10 +231,7 @@ class TreeAllocator(Allocator):  # TODO: docstrings
 
         is_ancestor, path = _is_ancestor(self.rank, owner, self.nb_children, self.tree_size)
         if is_ancestor:
-            self.log(path)
-            self.log(owner)
-            self.log(children)
-            self._send(data, path[-2], 1)  # TODO: Fix out of range
+            self._send(data, path[-2], 1)
             return
         self._send(data, self.parent, 1)
 
